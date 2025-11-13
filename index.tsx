@@ -5,7 +5,7 @@ declare global {
   }
 }
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // --- MOCK DATA ---
@@ -15,10 +15,9 @@ const sampleMembers = [
   { id: 3, name: 'Designer User', avatarUrl: 'https://i.pravatar.cc/150?u=a042581f4e29026706d' },
 ];
 
-const initialTeamMembers = [
-    { id: 3, name: 'Designer User', avatarUrl: sampleMembers[2].avatarUrl, email: 'designer@gmail.com', role: 'Owner', status: 'Online' },
-    { id: 1, name: 'Ana Silva', avatarUrl: sampleMembers[0].avatarUrl, email: 'ana.silva@gmail.com', role: 'Designer', status: 'Online' },
-    { id: 2, name: 'Carlos Santos', avatarUrl: sampleMembers[1].avatarUrl, email: 'carlos.santos@gmail.com', role: 'Developer', status: 'Offline' },
+const initialClients = [
+  { id: 'client-1', name: 'Tech Solutions Inc.', contactPerson: 'John Doe', email: 'john.doe@techsolutions.com', phone: '123-456-7890', logoUrl: 'https://logopond.com/logos/f7c13b1916a9a74360098411b0f19c2f.png' },
+  { id: 'client-2', name: 'Creative Minds Agency', contactPerson: 'Jane Smith', email: 'jane.smith@creativeminds.com', phone: '098-765-4321', logoUrl: 'https://logopond.com/logos/2569560f8a8738370786ac38029c9b43.png' },
 ];
 
 const teamPermissions = [
@@ -31,6 +30,8 @@ const teamPermissions = [
 const initialProjects = [
   {
     id: 'proj-1',
+    clientId: 'client-1',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72),
     name: 'Website Redesign',
     description: 'Redesign completo do site corporativo',
     dueDate: '2024-02-14',
@@ -38,7 +39,11 @@ const initialProjects = [
     progress: 65,
     members: [sampleMembers[0], sampleMembers[2]],
     subprojects: [],
-    keyVisual: null,
+    keyVisual: 'https://images.unsplash.com/photo-1559028006-448665bd7c16?q=80&w=2670&auto=format&fit=crop',
+    history: [
+        { status: 'Planejado', date: new Date(Date.now() - 1000 * 60 * 60 * 72) },
+        { status: 'Em Andamento', date: new Date(Date.now() - 1000 * 60 * 60 * 68) },
+    ],
     comments: [
         { id: 'c1', author: sampleMembers[0], text: 'Acho que podemos usar uma paleta de cores mais vibrante aqui.', timestamp: new Date(Date.now() - 1000 * 60 * 65) },
         { id: 'c2', author: sampleMembers[2], text: 'Boa ideia! Vou preparar algumas opções com tons de verde e laranja.', timestamp: new Date(Date.now() - 1000 * 60 * 30) },
@@ -46,6 +51,8 @@ const initialProjects = [
   },
   {
     id: 'proj-2',
+    clientId: 'client-2',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 120),
     name: 'Mobile App UI',
     description: 'Interface do aplicativo mobile',
     dueDate: '2024-01-29',
@@ -53,18 +60,29 @@ const initialProjects = [
     progress: 90,
     members: [sampleMembers[2], sampleMembers[1]],
     subprojects: [],
-    keyVisual: null,
+    keyVisual: 'https://images.unsplash.com/photo-1581287053822-fd7bf4f4bf3f?q=80&w=2574&auto=format&fit=crop',
+    history: [
+        { status: 'Planejado', date: new Date(Date.now() - 1000 * 60 * 60 * 120) },
+        { status: 'Em Andamento', date: new Date(Date.now() - 1000 * 60 * 60 * 90) },
+        { status: 'Aguardando Aprovação', date: new Date(Date.now() - 1000 * 60 * 60 * 2) },
+    ],
     comments: []
   },
     {
     id: 'proj-3',
+    clientId: 'client-2',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 200),
     name: 'Campanha Digital',
     description: 'Campanha digital de promoção sazonal.',
     dueDate: '2025-09-29',
     status: 'Aprovado',
     progress: 10,
     members: [sampleMembers[2]],
-    keyVisual: null,
+    keyVisual: 'https://images.unsplash.com/photo-1620912189875-19db35de9c1b?q=80&w=2664&auto=format&fit=crop',
+    history: [
+        { status: 'Planejado', date: new Date(Date.now() - 1000 * 60 * 60 * 200) },
+        { status: 'Aprovado', date: new Date(Date.now() - 1000 * 60 * 60 * 150) },
+    ],
     subprojects: [
         { id: 'sub-1', name: 'Peça 1: Banner Principal', description: 'Banner para a home do site 1200x400' },
         { id: 'sub-2', name: 'Peça 2: Posts para Instagram', description: '3 posts em formato carrossel' },
@@ -82,33 +100,93 @@ const initialFiles = [
     { id: 'file-4', projectId: 'proj-3', name: 'briefing_campanha.pdf', type: 'application/pdf', size: '0.8 MB', uploadedAt: '20/09/2025', content: null },
 ];
 
+const initialClientAssets = [
+    { id: 'asset-1', clientId: 'client-1', name: 'TechSolutions_Logo_Primary.svg', type: 'image/svg+xml', size: '15 KB', url: '#', uploadedAt: new Date(Date.now() - 1000 * 60 * 60 * 48) },
+    { id: 'asset-2', clientId: 'client-1', name: 'Manual_de_Marca.pdf', type: 'application/pdf', size: '5.2 MB', url: '#', uploadedAt: new Date(Date.now() - 1000 * 60 * 60 * 40) },
+    { id: 'asset-3', clientId: 'client-2', name: 'CreativeMinds_Full_Logo.png', type: 'image/png', size: '120 KB', url: '#', uploadedAt: new Date(Date.now() - 1000 * 60 * 60 * 150) },
+];
+
 const projectStati = ['Em Andamento', 'Aguardando Aprovação', 'Em Alteração', 'Standby', 'Recusado', 'Aprovado'];
 
+const getFileIcon = (type) => {
+    if (type.includes('pdf')) return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#F97316'}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
+    if (type.includes('image') || type.includes('sketch') || type.includes('figma') || type.includes('svg')) return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--primary-end)'}}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>;
+    return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--text-secondary)'}}><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>;
+};
+
+const useStickyState = (defaultValue, key) => {
+    const [value, setValue] = useState(() => {
+        const stickyValue = window.localStorage.getItem(key);
+        // A little trick to parse dates correctly from JSON
+        const parsedValue = stickyValue !== null ? JSON.parse(stickyValue, (k, v) => {
+            if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)) {
+                return new Date(v);
+            }
+            return v;
+        }) : defaultValue;
+        return parsedValue;
+    });
+
+    useEffect(() => {
+        window.localStorage.setItem(key, JSON.stringify(value));
+    }, [key, value]);
+
+    return [value, setValue];
+};
+
 const App = () => {
+    const [isSetupComplete, setIsSetupComplete] = useStickyState(false, 'agencySetupComplete');
+    const [agencyName, setAgencyName] = useStickyState('Manda Hub', 'agencyName');
+    
     const [activeTab, setActiveTab] = useState('projects');
-    const [projects, setProjects] = useState(initialProjects);
-    const [files, setFiles] = useState(initialFiles);
-    const [teamMembers, setTeamMembers] = useState(initialTeamMembers);
+    const [projects, setProjects] = useStickyState(initialProjects, 'projects');
+    const [files, setFiles] = useStickyState(initialFiles, 'files');
+    const [clients, setClients] = useStickyState(initialClients, 'clients');
+    const [clientAssets, setClientAssets] = useStickyState(initialClientAssets, 'clientAssets');
+    const [teamMembers, setTeamMembers] = useStickyState([], 'teamMembers');
+    const [currentUser, setCurrentUser] = useStickyState(null, 'currentUser');
+    
     const [selectedProject, setSelectedProject] = useState(null);
+    const [selectedClient, setSelectedClient] = useState(null);
+    const [selectedMember, setSelectedMember] = useState(null);
     const [previewingFile, setPreviewingFile] = useState(null);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
     const [isCreateSubprojectModalOpen, setCreateSubprojectModalOpen] = useState(false);
+    const [isCreateClientModalOpen, setCreateClientModalOpen] = useState(false);
     const [isRegisterMemberModalOpen, setRegisterMemberModalOpen] = useState(false);
     const [isStatusModalOpen, setStatusModalOpen] = useState(false);
     const [projectToUpdateStatus, setProjectToUpdateStatus] = useState(null);
+
+    const handleSetupComplete = ({ agencyName, owner }) => {
+        setAgencyName(agencyName);
+        setTeamMembers([owner]);
+        setCurrentUser(owner);
+        setIsSetupComplete(true);
+    };
     
     const handleCreateProject = (projectData) => {
         const newProject = { 
             id: crypto.randomUUID(), 
             ...projectData,
             progress: 0,
-            members: [sampleMembers[2]],
+            createdAt: new Date(),
+            history: [{ status: projectData.status, date: new Date() }],
+            members: [currentUser],
             subprojects: [],
             keyVisual: null,
             comments: [],
         };
         setProjects(prev => [newProject, ...prev]);
         setCreateModalOpen(false);
+    };
+    
+    const handleCreateClient = (clientData) => {
+        const newClient = {
+            id: crypto.randomUUID(),
+            ...clientData
+        };
+        setClients(prev => [newClient, ...prev]);
+        setCreateClientModalOpen(false);
     };
 
     const handleCreateSubproject = (subprojectData) => {
@@ -174,7 +252,6 @@ const App = () => {
     };
 
     const handlePostComment = (projectId, commentText) => {
-        const currentUser = sampleMembers.find(m => m.id === 3); // Designer User
         if (!currentUser) return;
 
         const newComment = {
@@ -200,10 +277,28 @@ const App = () => {
             id: crypto.randomUUID(),
             avatarUrl: `https://i.pravatar.cc/150?u=${crypto.randomUUID()}`,
             status: 'Offline',
+            assignedClients: [],
             ...memberData,
         };
         setTeamMembers(prev => [...prev, newMember]);
         setRegisterMemberModalOpen(false);
+    };
+    
+    const handleUpdateMemberProfile = (memberId, updatedData) => {
+        const updatedMembers = teamMembers.map(m =>
+            m.id === memberId ? { ...m, ...updatedData } : m
+        );
+        setTeamMembers(updatedMembers);
+        setSelectedMember(updatedMembers.find(m => m.id === memberId));
+    };
+    
+    const handleMemberAvatarUpload = (memberId, file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            handleUpdateMemberProfile(memberId, { avatarUrl: e.target.result as string });
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleOpenStatusModal = (project) => {
@@ -214,53 +309,239 @@ const App = () => {
     const handleUpdateProjectStatus = (projectId, newStatus) => {
         setProjects(prevProjects =>
             prevProjects.map(p =>
-                p.id === projectId ? { ...p, status: newStatus } : p
+                p.id === projectId ? { ...p, status: newStatus, history: [...(p.history || []), { status: newStatus, date: new Date() }] } : p
             )
         );
         setStatusModalOpen(false);
         setProjectToUpdateStatus(null);
     };
     
+    const handleProjectSelect = (project) => {
+        setActiveTab('projects-detail');
+        setSelectedProject(project);
+    };
+
+    const handleClientLogoUpload = (clientId, file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const updatedClients = clients.map(c =>
+                c.id === clientId ? { ...c, logoUrl: e.target.result as string } : c
+            );
+            setClients(updatedClients);
+            if (selectedClient?.id === clientId) {
+                setSelectedClient(updatedClients.find(c => c.id === clientId));
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleClientAssetUpload = (clientId, file) => {
+        if (!file) return;
+        const newAsset = {
+            id: crypto.randomUUID(),
+            clientId: clientId,
+            name: file.name,
+            type: file.type,
+            size: file.size > 1024 * 1024 ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : `${(file.size / 1024).toFixed(1)} KB`,
+            url: URL.createObjectURL(file),
+            uploadedAt: new Date(),
+        };
+        setClientAssets(prev => [newAsset, ...prev].sort((a,b) => b.uploadedAt.getTime() - a.uploadedAt.getTime()));
+    };
+
+    const handleExportCasePDF = async (project) => {
+        if (!window.jspdf) {
+            alert("Biblioteca PDF não carregada. Por favor, tente novamente.");
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 15;
+    
+        const addPageWithFooter = () => {
+            doc.addPage();
+            addFooter();
+        };
+
+        const addFooter = () => {
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(9);
+                doc.setTextColor(150);
+                doc.text(
+                    `Case exportado por ${agencyName}`,
+                    margin,
+                    pageHeight - 10
+                );
+                doc.text(
+                    `Página ${i} de ${pageCount}`,
+                    pageWidth - margin,
+                    pageHeight - 10,
+                    { align: 'right' }
+                );
+            }
+        };
+
+        let y = margin;
+    
+        const addText = (text, size, isBold, yPos) => {
+            if (yPos > pageHeight - margin - 20) {
+                addPageWithFooter();
+                yPos = margin;
+            }
+            doc.setFontSize(size);
+            doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+            const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
+            doc.text(lines, margin, yPos);
+            return yPos + (lines.length * (size * 0.35)) + 5;
+        };
+    
+        y = addText(project.name, 22, true, y);
+        const client = clients.find(c => c.id === project.clientId);
+        if (client) {
+            y = addText(`Cliente: ${client.name}`, 12, false, y);
+        }
+        y += 5;
+    
+        if (project.keyVisual) {
+            y = addText('Key Visual', 16, true, y);
+            try {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.src = project.keyVisual;
+                await new Promise((resolve, reject) => { 
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
+                
+                const imgProps = doc.getImageProperties(img);
+                const aspect = imgProps.width / imgProps.height;
+                let imgWidth = pageWidth - margin * 2;
+                let imgHeight = imgWidth / aspect;
+    
+                if (y + imgHeight > pageHeight - margin) {
+                    addPageWithFooter();
+                    y = margin;
+                }
+    
+                doc.addImage(img, 'JPEG', margin, y, imgWidth, imgHeight);
+                y += imgHeight + 10;
+            } catch (error) {
+                console.error("Error adding image to PDF:", error);
+                y = addText('Não foi possível carregar a imagem.', 10, false, y);
+            }
+        }
+    
+        if (project.subprojects && project.subprojects.length > 0) {
+            if (y > pageHeight - margin - 20) {
+                addPageWithFooter();
+                y = margin;
+            }
+            y = addText('Subprojetos / Desdobramentos', 18, true, y);
+    
+            project.subprojects.forEach(sp => {
+                if (y > pageHeight - margin - 20) {
+                     addPageWithFooter();
+                     y = margin;
+                }
+                y = addText(sp.name, 14, true, y);
+                y = addText(sp.description, 11, false, y);
+                y += 5;
+            });
+        }
+        
+        addFooter();
+        doc.save(`Case_${project.name.replace(/\s/g, '_')}.pdf`);
+    };
+    
+    useEffect(() => {
+        if(activeTab !== 'projects-detail') {
+            setSelectedProject(null);
+        }
+    }, [activeTab]);
+
+    if (!isSetupComplete) {
+        return <AgencySetup onSetupComplete={handleSetupComplete} />;
+    }
+    
     return (
       <div className="app-container">
-        <Header />
+        <Header agencyName={agencyName} />
         <main className="main-content">
           <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
           <div className="content-panel">
-            {activeTab === 'projects' && !selectedProject && (
-              <ProjectsView 
+            {activeTab === 'projects' && (
+              <ProjectsFeedView 
                 projects={projects}
-                files={files}
-                onCreateProject={() => setCreateModalOpen(true)}
-                onDeleteProject={handleDeleteProject}
-                onProjectSelect={setSelectedProject}
-                onOpenStatusModal={handleOpenStatusModal}
+                onProjectSelect={handleProjectSelect}
               />
             )}
-            {activeTab === 'projects' && selectedProject && (
+            {activeTab === 'projects-detail' && selectedProject && (
                 <ProjectDetailView
                     project={selectedProject}
-                    onBack={() => setSelectedProject(null)}
+                    onBack={() => setActiveTab('projects')}
                     onAddSubproject={() => setCreateSubprojectModalOpen(true)}
                     onDeleteSubproject={handleDeleteSubproject}
                     onKeyVisualUpload={handleKeyVisualUpload}
                     onPostComment={handlePostComment}
                 />
             )}
-            {activeTab === 'files' && (
-                <FilesView projects={projects} files={files} />
+            {activeTab === 'clients' && !selectedClient && (
+                <ClientsView 
+                    clients={clients} 
+                    onClientSelect={setSelectedClient} 
+                    onCreateClient={() => setCreateClientModalOpen(true)}
+                />
             )}
-            {activeTab === 'team' && (
+            {activeTab === 'clients' && selectedClient && (
+                <ClientDetailView
+                    client={selectedClient}
+                    projects={projects.filter(p => p.clientId === selectedClient.id)}
+                    files={files}
+                    onBack={() => setSelectedClient(null)}
+                    onProjectSelect={handleProjectSelect}
+                    onDeleteProject={handleDeleteProject}
+                    onOpenStatusModal={handleOpenStatusModal}
+                    onCreateProject={() => setCreateModalOpen(true)}
+                    clientAssets={clientAssets.filter(a => a.clientId === selectedClient.id)}
+                    onLogoUpload={handleClientLogoUpload}
+                    onAssetUpload={handleClientAssetUpload}
+                />
+            )}
+            {activeTab === 'cases' && (
+                <CasesView 
+                    projects={projects} 
+                    clients={clients}
+                    onExportCase={handleExportCasePDF}
+                />
+            )}
+             {activeTab === 'team' && !selectedMember && (
                <TeamView 
                  members={teamMembers} 
                  permissions={teamPermissions} 
                  onRegisterClick={() => setRegisterMemberModalOpen(true)}
+                 onMemberSelect={setSelectedMember}
+                />
+            )}
+            {activeTab === 'team' && selectedMember && (
+                <TeamMemberProfileView
+                    member={selectedMember}
+                    clients={clients}
+                    onBack={() => setSelectedMember(null)}
+                    onUpdateProfile={handleUpdateMemberProfile}
+                    onAvatarUpload={handleMemberAvatarUpload}
                 />
             )}
           </div>
         </main>
         {previewingFile && <FilePreviewModal file={previewingFile} onClose={() => setPreviewingFile(null)} />}
-        {isCreateModalOpen && <CreateProjectModal onCreateProject={handleCreateProject} onClose={() => setCreateModalOpen(false)} />}
+        {isCreateModalOpen && <CreateProjectModal clients={clients} onCreateProject={handleCreateProject} onClose={() => setCreateModalOpen(false)} />}
+        {isCreateClientModalOpen && <CreateClientModal onCreateClient={handleCreateClient} onClose={() => setCreateClientModalOpen(false)} />}
         {isCreateSubprojectModalOpen && <CreateSubprojectModal onCreateSubproject={handleCreateSubproject} onClose={() => setCreateSubprojectModalOpen(false)} />}
         {isRegisterMemberModalOpen && <RegisterMemberModal onRegisterMember={handleRegisterMember} onClose={() => setRegisterMemberModalOpen(false)} />}
         {isStatusModalOpen && projectToUpdateStatus && (
@@ -275,22 +556,81 @@ const App = () => {
     );
 };
 
-const Header = () => (
+const AgencySetup = ({ onSetupComplete }) => {
+    const [agencyName, setAgencyName] = useState('');
+    const [ownerName, setOwnerName] = useState('');
+    const [ownerEmail, setOwnerEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!agencyName.trim() || !ownerName.trim() || !ownerEmail.trim() || !password.trim()) return;
+        
+        const owner = {
+            id: crypto.randomUUID(),
+            name: ownerName,
+            email: ownerEmail,
+            role: 'Owner',
+            avatarUrl: `https://i.pravatar.cc/150?u=${crypto.randomUUID()}`,
+            status: 'Online',
+            assignedClients: [],
+        };
+
+        onSetupComplete({ agencyName, owner });
+    };
+
+    return (
+        <div className="setup-container">
+            <div className="create-project-modal" style={{ maxWidth: '500px' }}>
+                <header className="create-project-modal-header">
+                    <div>
+                        <h3 className="gradient-text">Bem-vindo ao Manda Hub!</h3>
+                        <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Vamos configurar sua agência.</p>
+                    </div>
+                </header>
+                <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label htmlFor="agencyName">Nome da Agência/Empresa</label>
+                        <input type="text" id="agencyName" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="ownerName">Seu Nome Completo</label>
+                        <input type="text" id="ownerName" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="ownerEmail">Seu E-mail (será seu login)</label>
+                        <input type="email" id="ownerEmail" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="password">Crie uma Senha</label>
+                        <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    </div>
+                    <div className="form-actions" style={{justifyContent: 'center', marginTop: '2.5rem'}}>
+                        <button type="submit" className="button-primary" style={{width: '100%', padding: '0.8rem'}}>Concluir Configuração</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const Header = ({ agencyName }) => (
     <header className="app-header">
       <div className="logo-section">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect x="3" y="3" width="18" height="18" rx="4" ry="4" fill="var(--primary-end)"/>
           <path d="M7 15.5V9.5C7 8.11929 8.11929 7 9.5 7C10.8807 7 12 8.11929 12 9.5V11.5C12 10.1193 13.1193 9 14.5 9C15.8807 9 17 10.1193 17 11.5V15.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        <h3>Manda Hub</h3>
+        <h3>{agencyName}</h3>
       </div>
     </header>
 );
 
 const Sidebar = ({ activeTab, onTabChange }) => {
     const navItems = [
-        { id: 'projects', label: 'Projetos', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> },
-        { id: 'files', label: 'Arquivos', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg> },
+        { id: 'projects', label: 'Feed', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"></path></svg> },
+        { id: 'cases', label: 'Cases', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> },
+        { id: 'clients', label: 'Clientes', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg> },
         { id: 'team', label: 'Equipe', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg> }
     ];
 
@@ -300,7 +640,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
                 {navItems.map(item => (
                     <button
                         key={item.id}
-                        className={activeTab === item.id ? 'active' : ''}
+                        className={activeTab.startsWith(item.id) ? 'active' : ''}
                         onClick={() => onTabChange(item.id)}
                     >
                         {item.icon}
@@ -312,35 +652,112 @@ const Sidebar = ({ activeTab, onTabChange }) => {
     );
 };
 
-const ProjectsView = ({ projects, files, onCreateProject, onDeleteProject, onProjectSelect, onOpenStatusModal }) => {
-    return (
-        <div className="projects-view">
-            <div className="view-header">
-                <div>
-                    <h1 className="gradient-text">Projetos</h1>
-                    <p>Gerencie todos os seus projetos de design</p>
+const timeSince = (date) => {
+    if (!date) return '';
+    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return `há ${Math.floor(interval)} anos`;
+    interval = seconds / 2592000;
+    if (interval > 1) return `há ${Math.floor(interval)} meses`;
+    interval = seconds / 86400;
+    if (interval > 1) return `há ${Math.floor(interval)} dias`;
+    interval = seconds / 3600;
+    if (interval > 1) return `há ${Math.floor(interval)} horas`;
+    interval = seconds / 60;
+    if (interval > 1) return `há ${Math.floor(interval)} minutos`;
+    return "agora mesmo";
+};
+
+const ProjectsFeedView = ({ projects, onProjectSelect }) => {
+    const [feed, setFeed] = useState([]);
+
+    useEffect(() => {
+        const generateActivityFeed = (projects) => {
+            const newFeed = [];
+
+            projects.forEach(project => {
+                project.history?.forEach((historyItem, index) => {
+                    const type = index === 0 ? 'PROJECT_CREATED' : 'STATUS_UPDATE';
+                    newFeed.push({
+                        id: `status-${project.id}-${historyItem.date.toISOString()}`,
+                        type: type,
+                        timestamp: historyItem.date,
+                        data: {
+                            projectName: project.name,
+                            project: project,
+                            status: historyItem.status,
+                            user: project.members[0] || sampleMembers.find(m => m.id === 3)
+                        }
+                    });
+                });
+                
+                project.comments.forEach(comment => {
+                    newFeed.push({
+                        id: `comment-${comment.id}`,
+                        type: 'NEW_COMMENT',
+                        timestamp: comment.timestamp,
+                        data: {
+                            projectName: project.name,
+                            project: project,
+                            user: comment.author,
+                            text: comment.text
+                        }
+                    });
+                });
+            });
+
+            return newFeed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        };
+
+        setFeed(generateActivityFeed(projects));
+    }, [projects]);
+    
+    // FIX: Explicitly type ActivityItem as a React Functional Component to allow the 'key' prop.
+    const ActivityItem: React.FC<{ item: any }> = ({ item }) => {
+        const { type, timestamp, data } = item;
+        const user = data.user;
+
+        const renderContent = () => {
+            switch (type) {
+                case 'PROJECT_CREATED':
+                    return <>criou o projeto <strong onClick={() => onProjectSelect(data.project)}>{data.projectName}</strong></>;
+                case 'STATUS_UPDATE':
+                    return <>atualizou o status do projeto <strong onClick={() => onProjectSelect(data.project)}>{data.projectName}</strong> para <strong>{data.status}</strong></>;
+                case 'NEW_COMMENT':
+                    return <>comentou no projeto <strong onClick={() => onProjectSelect(data.project)}>{data.projectName}</strong>: <em>"{data.text}"</em></>;
+                default:
+                    return null;
+            }
+        };
+
+        return (
+            <div className="activity-item">
+                <img src={user.avatarUrl} alt={user.name} className="activity-avatar" />
+                <div className="activity-content">
+                    <p>
+                        <strong>{user.name}</strong> {renderContent()}
+                    </p>
+                    <span className="activity-timestamp">{timeSince(timestamp)}</span>
                 </div>
-                <button onClick={onCreateProject} className="button-primary">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    Novo Projeto
-                </button>
             </div>
-            <div className="project-grid">
-                {projects.map(p => (
-                    <ProjectCard 
-                        key={p.id}
-                        project={p}
-                        filesCount={files.filter(f => f.projectId === p.id).length}
-                        subprojectsCount={p.subprojects?.length || 0}
-                        onDeleteProject={onDeleteProject}
-                        onClick={() => onProjectSelect(p)}
-                        onOpenStatusModal={() => onOpenStatusModal(p)}
-                    />
-                ))}
+        );
+    };
+
+    return (
+        <div className="projects-feed-view">
+             <div className="view-header">
+                <div>
+                    <h1 className="gradient-text">Feed de Atividades</h1>
+                    <p>Veja as últimas atualizações de todos os projetos</p>
+                </div>
+            </div>
+            <div className="activity-list">
+                {feed.map(item => <ActivityItem key={item.id} item={item} />)}
             </div>
         </div>
     );
-}
+};
+
 
 // FIX: Explicitly type ProjectCard as a React Functional Component to allow the 'key' prop.
 const ProjectCard: React.FC<{
@@ -465,8 +882,12 @@ const ProjectDetailView = ({ project, onBack, onAddSubproject, onDeleteSubprojec
             y = addText('Key Visual', 16, true, y);
             try {
                 const img = new Image();
+                img.crossOrigin = "anonymous";
                 img.src = project.keyVisual;
-                await new Promise(resolve => { img.onload = resolve; });
+                await new Promise((resolve, reject) => { 
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
                 
                 const imgProps = doc.getImageProperties(img);
                 const aspect = imgProps.width / imgProps.height;
@@ -511,7 +932,7 @@ const ProjectDetailView = ({ project, onBack, onAddSubproject, onDeleteSubprojec
         <section className="project-detail-view">
             <div className="panel-header">
                 <div className="panel-header-left">
-                     <button onClick={onBack} className="back-button" title="Voltar aos projetos">
+                     <button onClick={onBack} className="back-button" title="Voltar">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     </button>
                     <h4>{project.name}</h4>
@@ -571,22 +992,6 @@ const ProjectDetailView = ({ project, onBack, onAddSubproject, onDeleteSubprojec
 const CommentsPanel = ({ comments, onPostComment }) => {
     const [newComment, setNewComment] = useState('');
     const commentsEndRef = useRef(null);
-
-    const timeSince = (date) => {
-        // FIX: Use .getTime() to perform arithmetic operations on dates, which is type-safe in TypeScript.
-        const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
-        let interval = seconds / 31536000;
-        if (interval > 1) return `há ${Math.floor(interval)} anos`;
-        interval = seconds / 2592000;
-        if (interval > 1) return `há ${Math.floor(interval)} meses`;
-        interval = seconds / 86400;
-        if (interval > 1) return `há ${Math.floor(interval)} dias`;
-        interval = seconds / 3600;
-        if (interval > 1) return `há ${Math.floor(interval)} horas`;
-        interval = seconds / 60;
-        if (interval > 1) return `há ${Math.floor(interval)} minutos`;
-        return "agora mesmo";
-    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -661,16 +1066,17 @@ const FilePreviewModal = ({ file, onClose }) => {
   );
 };
 
-const CreateProjectModal = ({ onCreateProject, onClose }) => {
+const CreateProjectModal = ({ clients, onCreateProject, onClose }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [dueDate, setDueDate] = useState('');
     const [status, setStatus] = useState('Em Andamento');
+    const [clientId, setClientId] = useState('');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!name.trim()) return;
-        onCreateProject({ name, description, dueDate, status });
+        if (!name.trim() || !clientId || !dueDate) return;
+        onCreateProject({ name, description, dueDate, status, clientId });
     };
 
     return (
@@ -692,6 +1098,18 @@ const CreateProjectModal = ({ onCreateProject, onClose }) => {
                             required
                         />
                     </div>
+                     <div className="form-group">
+                        <label htmlFor="projectClient">Cliente</label>
+                        <select
+                            id="projectClient"
+                            value={clientId}
+                            onChange={(e) => setClientId(e.target.value)}
+                            required
+                        >
+                            <option value="" disabled>Selecione um cliente</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
                     <div className="form-group">
                         <label htmlFor="projectDescription">Descrição</label>
                         <textarea
@@ -712,6 +1130,7 @@ const CreateProjectModal = ({ onCreateProject, onClose }) => {
                             id="projectDueDate"
                             value={dueDate}
                             onChange={(e) => setDueDate(e.target.value)}
+                            required
                         />
                     </div>
                     <div className="form-group">
@@ -730,7 +1149,7 @@ const CreateProjectModal = ({ onCreateProject, onClose }) => {
                     </div>
                     <div className="form-actions">
                         <button type="button" onClick={onClose} className="button-secondary">Cancelar</button>
-                        <button type="submit" className="button-primary" disabled={!name.trim()}>Criar Projeto</button>
+                        <button type="submit" className="button-primary" disabled={!name.trim() || !clientId || !dueDate}>Criar Projeto</button>
                     </div>
                 </form>
             </div>
@@ -907,45 +1326,72 @@ const UpdateStatusModal = ({ project, stati, onUpdateStatus, onClose }) => {
     );
 };
 
-const FilesView = ({ projects, files }) => {
-    const fileInputRef = useRef(null);
-    // In a real app, this would be part of a global state/context
-    const handleFileUpload = (e) => alert("Upload functionality would be handled here.");
+const CasesView = ({ projects, clients, onExportCase }) => {
+    const approvedProjects = projects.filter(p => p.status === 'Aprovado');
 
     return (
-        <div className="files-view">
+        <div className="cases-view">
             <div className="view-header">
                 <div>
-                    <h1 className="gradient-text">Arquivos</h1>
-                    <p>Gerencie todos os seus arquivos de design</p>
+                    <h1 className="gradient-text">Cases de Sucesso</h1>
+                    <p>Um portfólio dos seus melhores projetos finalizados</p>
                 </div>
-                <button onClick={() => fileInputRef.current?.click()} className="button-primary">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                    Upload de Arquivos
-                </button>
-                <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} />
             </div>
-            <FileDropzone onFileUpload={handleFileUpload} />
-            <div className="file-list">
-                {files.map(file => (
-                    <FileListItem 
-                        key={file.id} 
-                        file={file} 
-                        projectName={projects.find(p => p.id === file.projectId)?.name || 'Unknown Project'} 
-                    />
-                ))}
+            {approvedProjects.length > 0 ? (
+                <div className="cases-grid">
+                    {approvedProjects.map(project => (
+                        <CaseCard 
+                            key={project.id}
+                            project={project}
+                            client={clients.find(c => c.id === project.clientId)}
+                            onExport={() => onExportCase(project)}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <div className="empty-state">
+                    <h3>Nenhum case para mostrar</h3>
+                    <p>Projetos com o status "Aprovado" aparecerão aqui automaticamente.</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const CaseCard: React.FC<{ project: any; client: any; onExport: () => void; }> = ({ project, client, onExport }) => {
+    return (
+        <div className="case-card">
+            <div className="case-card-image">
+                {project.keyVisual ? (
+                    <img src={project.keyVisual} alt={`Key visual for ${project.name}`} />
+                ) : (
+                    <div className="kv-placeholder-case">
+                        <span>Sem KV</span>
+                    </div>
+                )}
+            </div>
+            <div className="case-card-content">
+                <div className="case-card-info">
+                    <h3>{project.name}</h3>
+                    <p>{client?.name || 'Cliente desconhecido'}</p>
+                </div>
+                <div className="case-card-actions">
+                    <button onClick={onExport} className="button-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        Exportar PDF
+                    </button>
+                </div>
             </div>
         </div>
     );
 };
 
-const FileDropzone = ({ onFileUpload }) => {
-    const handleClick = () => {
-        (document.querySelector('input[type="file"][style="display: none;"]') as HTMLInputElement)?.click();
-    };
+const FileDropzone: React.FC<{onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void}> = ({ onFileUpload }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
 
     return (
-        <div className="file-dropzone" onClick={handleClick}>
+        <div className="file-dropzone" onClick={() => inputRef.current?.click()}>
+            <input type="file" ref={inputRef} onChange={onFileUpload} style={{ display: 'none' }} multiple />
             <div className="dropzone-content">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="dropzone-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                 <p className="dropzone-text"><strong>Arraste e solte seus arquivos aqui</strong></p>
@@ -956,50 +1402,7 @@ const FileDropzone = ({ onFileUpload }) => {
     );
 };
 
-// FIX: Explicitly type FileListItem as a React Functional Component to allow the 'key' prop.
-const FileListItem: React.FC<{
-    file: any;
-    projectName: any;
-}> = ({ file, projectName }) => {
-    const getFileIcon = (type) => {
-        if (type.includes('pdf')) return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#F97316'}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
-        if (type.includes('image') || type.includes('sketch') || type.includes('figma')) return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--primary-end)'}}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>;
-        return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--text-secondary)'}}><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>;
-    };
-
-    return (
-        <div className="file-list-item">
-            <div className="file-info">
-                <div className="file-icon">{getFileIcon(file.type)}</div>
-                <div>
-                    <p className="file-name">{file.name}</p>
-                    <p className="file-size">{file.size}</p>
-                </div>
-            </div>
-            <div className="file-meta">
-                <div className="file-project-info">
-                    <p className="meta-label">Projeto:</p>
-                    <p className="meta-value">{projectName}</p>
-                </div>
-                <div className="file-date-info">
-                    <p className="meta-label">Enviado em:</p>
-                    <p className="meta-value">{file.uploadedAt}</p>
-                </div>
-            </div>
-            <div className="file-actions">
-                <button className="button-download">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    <span>Download</span>
-                </button>
-                <button className="button-open">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const TeamView = ({ members, permissions, onRegisterClick }) => (
+const TeamView = ({ members, permissions, onRegisterClick, onMemberSelect }) => (
     <div className="team-view">
         <div className="view-header">
             <div>
@@ -1018,7 +1421,7 @@ const TeamView = ({ members, permissions, onRegisterClick }) => (
                     <span>{members.length}/{members.length} membros</span>
                 </div>
                 <div className="team-members-list">
-                    {members.map(member => <TeamMemberItem key={member.id} member={member} />)}
+                    {members.map(member => <TeamMemberItem key={member.id} member={member} onSelect={onMemberSelect} />)}
                 </div>
             </div>
             <div className="team-card">
@@ -1042,8 +1445,8 @@ const TeamView = ({ members, permissions, onRegisterClick }) => (
 );
 
 // FIX: Explicitly type TeamMemberItem as a React Functional Component to allow the 'key' prop.
-const TeamMemberItem: React.FC<{ member: any }> = ({ member }) => (
-    <div className="team-member-item">
+const TeamMemberItem: React.FC<{ member: any; onSelect: (member: any) => void; }> = ({ member, onSelect }) => (
+    <div className="team-member-item" onClick={() => onSelect(member)}>
         <div className="member-info">
             <div className="avatar-wrapper">
                 <img src={member.avatarUrl} alt={member.name} className="avatar" />
@@ -1065,12 +1468,140 @@ const TeamMemberItem: React.FC<{ member: any }> = ({ member }) => (
         </div>
         <div className="member-actions">
             <span className={`status-badge status-${member.status.toLowerCase()}`}>{member.status}</span>
-             <button className="options-button">
+             <button className="options-button" onClick={(e) => e.stopPropagation()}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
             </button>
         </div>
     </div>
 );
+
+
+const TeamMemberProfileView: React.FC<{ member: any; clients: any[]; onBack: () => void; onUpdateProfile: (memberId: string, data: any) => void; onAvatarUpload: (memberId: string, file: File) => void; }> = ({ member, clients, onBack, onUpdateProfile, onAvatarUpload }) => {
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [isEditingRole, setIsEditingRole] = useState(false);
+    const [name, setName] = useState(member.name);
+    const [role, setRole] = useState(member.role);
+
+    const handleNameBlur = () => {
+        setIsEditingName(false);
+        if (name.trim() && name !== member.name) {
+            onUpdateProfile(member.id, { name });
+        } else {
+            setName(member.name);
+        }
+    };
+
+    const handleRoleBlur = () => {
+        setIsEditingRole(false);
+        if (role.trim() && role !== member.role) {
+            onUpdateProfile(member.id, { role });
+        } else {
+            setRole(member.role);
+        }
+    };
+
+    const handleClientAssignmentChange = (clientId, isChecked) => {
+        const currentAssigned = member.assignedClients || [];
+        const newAssigned = isChecked
+            ? [...currentAssigned, clientId]
+            : currentAssigned.filter(id => id !== clientId);
+        onUpdateProfile(member.id, { assignedClients: newAssigned });
+    };
+
+    const assignedClientDetails = (member.assignedClients || []).map(id => clients.find(c => c.id === id)).filter(Boolean);
+
+    return (
+        <div className="team-member-profile-view">
+            <div className="panel-header">
+                <div className="panel-header-left">
+                    <button onClick={onBack} className="back-button" title="Voltar para a equipe">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <h4>Perfil do Membro</h4>
+                </div>
+            </div>
+            <div className="profile-content">
+                <div className="profile-header-card">
+                    <div className="profile-avatar-container">
+                        <img src={member.avatarUrl} alt={member.name} className="profile-avatar" />
+                        <button className="avatar-upload-button" onClick={() => avatarInputRef.current?.click()}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                        </button>
+                        <input type="file" ref={avatarInputRef} onChange={(e) => onAvatarUpload(member.id, e.target.files[0])} style={{ display: 'none' }} accept="image/*" />
+                    </div>
+                    <div className="profile-info">
+                        {isEditingName ? (
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                onBlur={handleNameBlur}
+                                onKeyDown={(e) => e.key === 'Enter' && handleNameBlur()}
+                                autoFocus
+                                className="profile-name-input"
+                            />
+                        ) : (
+                            <h2 className="profile-name" onClick={() => setIsEditingName(true)}>{member.name}</h2>
+                        )}
+                         {isEditingRole ? (
+                            <input
+                                type="text"
+                                value={role}
+                                onChange={(e) => setRole(e.target.value)}
+                                onBlur={handleRoleBlur}
+                                onKeyDown={(e) => e.key === 'Enter' && handleRoleBlur()}
+                                autoFocus
+                                className="profile-role-input"
+                            />
+                        ) : (
+                             <p className="profile-role" onClick={() => setIsEditingRole(true)}>{member.role}</p>
+                        )}
+                        <div className="member-email-wrapper">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                            <span className="member-email">{member.email}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="profile-clients-card">
+                    <div className="team-card-header" style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)'}}>
+                        <h2>Clientes Atendidos</h2>
+                    </div>
+                    <div className="client-assignment-section">
+                        <div className="assigned-clients-list">
+                            {assignedClientDetails.length > 0 ? (
+                                assignedClientDetails.map(client => (
+                                    <div key={client.id} className="assigned-client-item">
+                                        <img src={client.logoUrl} alt={client.name} className="assigned-client-logo" />
+                                        <span>{client.name}</span>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="empty-state-small" style={{padding: '1rem 0'}}>Nenhum cliente atribuído.</p>
+                            )}
+                        </div>
+                        <div className="available-clients-list">
+                            <h3>Atribuir clientes</h3>
+                            {clients.map(client => (
+                                <div key={client.id} className="client-checkbox-item">
+                                    <input
+                                        type="checkbox"
+                                        id={`client-assign-${client.id}`}
+                                        checked={(member.assignedClients || []).includes(client.id)}
+                                        onChange={(e) => handleClientAssignmentChange(client.id, e.target.checked)}
+                                    />
+                                    <label htmlFor={`client-assign-${client.id}`}>{client.name}</label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const RoleIcon = ({ role }) => {
     switch (role) {
@@ -1084,6 +1615,210 @@ const RoleIcon = ({ role }) => {
             return null;
     }
 };
+
+const ClientsView = ({ clients, onClientSelect, onCreateClient }) => (
+    <div className="clients-view">
+        <div className="view-header">
+            <div>
+                <h1 className="gradient-text">Clientes</h1>
+                <p>Gerencie todos os seus clientes</p>
+            </div>
+            <button onClick={onCreateClient} className="button-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Cadastrar Cliente
+            </button>
+        </div>
+        <div className="client-grid">
+            {clients.map(c => <ClientCard key={c.id} client={c} onClick={() => onClientSelect(c)} />)}
+        </div>
+    </div>
+);
+
+// FIX: Explicitly type ClientCard as a React Functional Component to allow the 'key' prop.
+const ClientCard: React.FC<{ client: any; onClick: any }> = ({ client, onClick }) => (
+    <div className="client-card" onClick={onClick}>
+        <div className="client-card-logo-wrapper">
+            <img src={client.logoUrl} alt={`${client.name} logo`} className="client-card-logo" />
+        </div>
+        <div className="client-card-info">
+            <h3>{client.name}</h3>
+            <p>{client.contactPerson}</p>
+        </div>
+    </div>
+);
+
+const ClientDetailView = ({ client, projects, files, onBack, onProjectSelect, onDeleteProject, onOpenStatusModal, onCreateProject, clientAssets, onLogoUpload, onAssetUpload }) => {
+    const [activeDetailTab, setActiveDetailTab] = useState('projects');
+    const logoInputRef = useRef<HTMLInputElement>(null);
+    
+    return (
+        <div className="client-detail-view">
+            <div className="panel-header">
+                <div className="panel-header-left">
+                     <button onClick={onBack} className="back-button" title="Voltar aos clientes">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <div className="client-detail-header-info">
+                         <button className="client-logo-upload-trigger" onClick={() => logoInputRef.current?.click()} title="Trocar logo">
+                            <img src={client.logoUrl} alt={`${client.name} logo`} />
+                            <div className="logo-upload-overlay">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                            </div>
+                        </button>
+                        <input type="file" ref={logoInputRef} onChange={(e) => onLogoUpload(client.id, e.target.files[0])} style={{ display: 'none' }} accept="image/*" />
+                        <h4>{client.name}</h4>
+                    </div>
+                </div>
+                 <div className="panel-header-right">
+                    <button onClick={onCreateProject} className="button-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Novo Projeto
+                    </button>
+                </div>
+            </div>
+            <div className="client-info-bar">
+                <div><span>Contato:</span> {client.contactPerson}</div>
+                <div><span>Email:</span> {client.email}</div>
+                <div><span>Telefone:</span> {client.phone}</div>
+            </div>
+            
+            <div className="client-detail-tabs">
+                <button className={`tab-button ${activeDetailTab === 'projects' ? 'active' : ''}`} onClick={() => setActiveDetailTab('projects')}>Projetos</button>
+                <button className={`tab-button ${activeDetailTab === 'assets' ? 'active' : ''}`} onClick={() => setActiveDetailTab('assets')}>Assets</button>
+            </div>
+
+            <div className="client-detail-tab-content">
+                {activeDetailTab === 'projects' && (
+                    <>
+                        <h2 className="client-projects-title">Projetos do Cliente</h2>
+                        <div className="project-grid">
+                            {projects.map(p => (
+                                <ProjectCard 
+                                    key={p.id}
+                                    project={p}
+                                    filesCount={files.filter(f => f.projectId === p.id).length}
+                                    subprojectsCount={p.subprojects?.length || 0}
+                                    onDeleteProject={onDeleteProject}
+                                    onClick={() => onProjectSelect(p)}
+                                    onOpenStatusModal={() => onOpenStatusModal(p)}
+                                />
+                            ))}
+                        </div>
+                    </>
+                )}
+                 {activeDetailTab === 'assets' && (
+                    <ClientAssetsView
+                        assets={clientAssets}
+                        clientId={client.id}
+                        onAssetUpload={onAssetUpload}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+const ClientAssetsView: React.FC<{ assets: any[]; clientId: string; onAssetUpload: (clientId: string, file: File) => void; }> = ({ assets, clientId, onAssetUpload }) => {
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            Array.from(e.target.files).forEach(file => onAssetUpload(clientId, file));
+        }
+        if (e.target) e.target.value = null; // Reset input
+    };
+
+    return (
+        <div className="client-assets-view">
+            <h2 className="client-projects-title">Assets do Cliente</h2>
+            <FileDropzone onFileUpload={handleFileSelect} />
+            <div className="asset-list">
+                {assets.length === 0 ? (
+                    <p className="empty-state-small" style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>Nenhum asset cadastrado para este cliente.</p>
+                ) : (
+                    assets.map(asset => <AssetListItem key={asset.id} asset={asset} />)
+                )}
+            </div>
+        </div>
+    );
+};
+
+const AssetListItem: React.FC<{ asset: any }> = ({ asset }) => {
+    return (
+        <div className="file-list-item">
+            <div className="file-info">
+                <div className="file-icon">{getFileIcon(asset.type)}</div>
+                <div>
+                    <p className="file-name">{asset.name}</p>
+                    <p className="file-size">{asset.size}</p>
+                </div>
+            </div>
+            <div className="file-meta">
+                 <div className="file-date-info">
+                    <p className="meta-label">Enviado em:</p>
+                    <p className="meta-value">{new Date(asset.uploadedAt).toLocaleDateString()}</p>
+                </div>
+            </div>
+            <div className="file-actions">
+                <a href={asset.url} download={asset.name} className="button-download" style={{textDecoration: 'none'}}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span>Download</span>
+                </a>
+            </div>
+        </div>
+    );
+};
+
+
+const CreateClientModal = ({ onCreateClient, onClose }) => {
+    const [name, setName] = useState('');
+    const [contactPerson, setContactPerson] = useState('');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
+    const [logoUrl, setLogoUrl] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        onCreateClient({ name, contactPerson, email, phone, logoUrl });
+    };
+
+    return (
+         <div className="modal-overlay" onClick={onClose}>
+            <div className="create-project-modal" onClick={(e) => e.stopPropagation()}>
+                <header className="create-project-modal-header">
+                    <h3 className="gradient-text">Cadastrar Cliente</h3>
+                    <button onClick={onClose} className="modal-close-button">&times;</button>
+                </header>
+                <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label htmlFor="clientName">Nome da Empresa</label>
+                        <input type="text" id="clientName" value={name} onChange={e => setName(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="contactPerson">Nome do Contato</label>
+                        <input type="text" id="contactPerson" value={contactPerson} onChange={e => setContactPerson(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="clientEmail">Email de Contato</label>
+                        <input type="email" id="clientEmail" value={email} onChange={e => setEmail(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="clientPhone">Telefone de Contato</label>
+                        <input type="tel" id="clientPhone" value={phone} onChange={e => setPhone(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="clientLogo">URL do Logo</label>
+                        <input type="text" id="clientLogo" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" />
+                    </div>
+                    <div className="form-actions">
+                        <button type="button" onClick={onClose} className="button-secondary">Cancelar</button>
+                        <button type="submit" className="button-primary" disabled={!name.trim()}>Cadastrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 
 const styles = `
 :root {
@@ -1109,6 +1844,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 #root { height: 100vh; }
+
+.setup-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: var(--background);
+}
 
 .app-container {
     display: flex;
@@ -1200,10 +1943,56 @@ body {
     gap: 0.5rem;
 }
 
-/* Projects View */
-.projects-view {
+/* Projects Feed View */
+.projects-feed-view {
     padding: 2.5rem;
 }
+.activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+.activity-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+.activity-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+.activity-content p {
+    margin: 0;
+    line-height: 1.6;
+}
+.activity-content p strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.activity-content p strong:hover {
+    text-decoration: underline;
+    cursor: pointer;
+    color: var(--primary-start);
+}
+.activity-content p em {
+    font-style: normal;
+    background-color: var(--subproject-card-bg);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+}
+.activity-timestamp {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    display: block;
+}
+
+/* Project Grid (reusable) */
 .project-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -1603,11 +2392,227 @@ body {
     cursor: not-allowed;
 }
 
-
-/* Files View */
-.files-view {
+/* Clients View */
+.clients-view {
     padding: 2.5rem;
 }
+.client-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+.client-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+.client-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--primary-end);
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+}
+.client-card-logo-wrapper {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+}
+.client-card-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.client-card-info h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+.client-card-info p {
+    margin: 0.25rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+/* Client Detail View */
+.client-detail-view {
+    padding: 2.5rem;
+}
+.client-detail-header-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.client-logo-upload-trigger {
+    position: relative;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+.client-logo-upload-trigger img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background-color: #fff;
+    padding: 4px;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+.logo-upload-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0,0,0,0.6);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+.client-logo-upload-trigger:hover .logo-upload-overlay {
+    opacity: 1;
+}
+
+.client-info-bar {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+.client-info-bar div span {
+    color: var(--text-secondary);
+    margin-right: 0.5rem;
+}
+.client-detail-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 2.5rem;
+}
+.tab-button {
+    padding: 0.75rem 1.25rem;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    top: 1px; /* Aligns with border */
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.tab-button:hover {
+    color: var(--text-primary);
+}
+.tab-button.active {
+    color: var(--primary-start);
+    border-bottom-color: var(--primary-start);
+}
+.client-projects-title {
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+}
+
+/* Client Assets View */
+.client-assets-view .asset-list {
+    display: grid;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+/* Cases View */
+.cases-view {
+    padding: 2.5rem;
+}
+.cases-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 2rem;
+}
+.case-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    transition: all 0.2s ease-in-out;
+}
+.case-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    border-color: var(--primary-start);
+}
+.case-card-image {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background-color: var(--subproject-card-bg);
+}
+.case-card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.kv-placeholder-case {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+}
+.case-card-content {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+.case-card-info h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.case-card-info p {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+.case-card-actions .button-secondary {
+    padding: 0.5rem 1rem;
+}
+
+/* Files View (Old, now used by Assets) */
 .file-dropzone {
     border: 2px dashed var(--border-color);
     border-radius: 12px;
@@ -1647,25 +2652,22 @@ body {
     margin-top: 0.75rem;
 }
 
-/* File List Item */
-.file-list {
-    display: grid;
-    gap: 1rem;
-}
+/* File List Item (for Assets) */
 .file-list-item {
     background-color: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 1rem;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 2fr 1.5fr auto;
     align-items: center;
-    gap: 1rem;
+    gap: 1.5rem;
 }
 .file-info {
     display: flex;
     align-items: center;
     gap: 1rem;
+    min-width: 0; /* Prevents text overflow issues */
 }
 .file-icon {
     flex-shrink: 0;
@@ -1674,6 +2676,9 @@ body {
     font-weight: 500;
     color: var(--text-primary);
     margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .file-size {
     font-size: 0.875rem;
@@ -1683,6 +2688,7 @@ body {
 .file-meta {
     display: flex;
     gap: 2rem;
+    min-width: 0;
 }
 .meta-label {
     font-size: 0.875rem;
@@ -1694,6 +2700,9 @@ body {
     color: var(--text-primary);
     margin: 0;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .file-actions {
     display: flex;
@@ -1766,6 +2775,14 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+    padding: 0.5rem;
+    margin: -0.5rem; /* Counteract padding */
+    cursor: pointer;
+}
+.team-member-item:hover {
+    background-color: var(--subproject-card-bg);
 }
 .member-info {
     display: flex;
@@ -1839,6 +2856,156 @@ body {
     margin: 0;
     font-size: 0.875rem;
     color: var(--text-secondary);
+}
+
+
+/* Team Member Profile View */
+.team-member-profile-view {
+    padding: 2.5rem;
+}
+.profile-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+.profile-header-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+.profile-avatar-container {
+    position: relative;
+    flex-shrink: 0;
+}
+.profile-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 3px solid var(--primary-end);
+}
+.avatar-upload-button {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--subproject-card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.avatar-upload-button:hover {
+    background-color: var(--border-color);
+}
+.profile-info {
+    display: flex;
+    flex-direction: column;
+}
+.profile-name, .profile-role {
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    margin: 0 -0.5rem;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+.profile-name:hover, .profile-role:hover {
+    background-color: var(--subproject-card-bg);
+}
+.profile-name {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+.profile-role {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+.profile-name-input, .profile-role-input {
+    background-color: var(--subproject-card-bg);
+    border: 1px solid var(--primary-end);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    padding: 0.25rem 0.5rem;
+    outline: none;
+}
+.profile-name-input {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+.profile-role-input {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.profile-clients-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+.client-assignment-section {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 2rem;
+    padding-top: 1.5rem;
+}
+.client-assignment-section > div:nth-child(2) {
+    background-color: var(--border-color); /* Separator */
+}
+.assigned-clients-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.assigned-client-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    background-color: var(--subproject-card-bg);
+    border-radius: 6px;
+}
+.assigned-client-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: contain;
+    background-color: white;
+}
+.available-clients-list h3 {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+.client-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.client-checkbox-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-end);
+    cursor: pointer;
+}
+.client-checkbox-item label {
+    cursor: pointer;
+    color: var(--text-primary);
 }
 
 
