@@ -1,4 +1,4 @@
-// FIX: Add global declaration for jspdf to avoid TypeScript errors.
+// Add global declaration for jspdf to avoid TypeScript errors.
 declare global {
   interface Window {
     jspdf: any;
@@ -76,7 +76,7 @@ const initialProjects = [
     description: 'Campanha digital de promoção sazonal.',
     dueDate: '2025-09-29',
     status: 'Aprovado',
-    progress: 10,
+    progress: 100,
     members: [sampleMembers[2]],
     keyVisual: 'https://images.unsplash.com/photo-1620912189875-19db35de9c1b?q=80&w=2664&auto=format&fit=crop',
     history: [
@@ -116,19 +116,28 @@ const getFileIcon = (type) => {
 
 const useStickyState = (defaultValue, key) => {
     const [value, setValue] = useState(() => {
-        const stickyValue = window.localStorage.getItem(key);
-        // A little trick to parse dates correctly from JSON
-        const parsedValue = stickyValue !== null ? JSON.parse(stickyValue, (k, v) => {
-            if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)) {
-                return new Date(v);
-            }
-            return v;
-        }) : defaultValue;
-        return parsedValue;
+        try {
+            const stickyValue = window.localStorage.getItem(key);
+            // A little trick to parse dates correctly from JSON
+            const parsedValue = stickyValue !== null ? JSON.parse(stickyValue, (k, v) => {
+                if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)) {
+                    return new Date(v);
+                }
+                return v;
+            }) : defaultValue;
+            return parsedValue;
+        } catch (error) {
+            console.error("Error reading from localStorage", error);
+            return defaultValue;
+        }
     });
 
     useEffect(() => {
-        window.localStorage.setItem(key, JSON.stringify(value));
+        try {
+            window.localStorage.setItem(key, JSON.stringify(value));
+        } catch (error) {
+            console.error("Error writing to localStorage", error);
+        }
     }, [key, value]);
 
     return [value, setValue];
@@ -521,14 +530,26 @@ const App = () => {
         doc.save(`Case_${project.name.replace(/\s/g, '_')}.pdf`);
     };
     
+    const handleDeleteUser = (userId) => {
+        if (window.confirm("Tem certeza que deseja excluir esta agência? Esta ação é irreversível.")) {
+            setUsers(prev => prev.filter(u => u.id !== userId));
+        }
+    };
+
     useEffect(() => {
         if(activeTab !== 'projects-detail') {
             setSelectedProject(null);
         }
+         if(activeTab !== 'clients') {
+            setSelectedClient(null);
+        }
+         if(activeTab !== 'team') {
+            setSelectedMember(null);
+        }
     }, [activeTab]);
 
     if (isAdmin) {
-        return <AdminDashboard users={users} onLogout={handleLogout} />;
+        return <AdminDashboard users={users} onLogout={handleLogout} onDeleteUser={handleDeleteUser} />;
     }
 
     if (!currentUser) {
@@ -536,144 +557,156 @@ const App = () => {
     }
     
     return (
-      <div className="app-container">
-        <Header agencyName={agencyName} currentUser={currentUser} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
-        <main className="main-content">
-          <div className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)}></div>
-          <Sidebar activeTab={activeTab} onTabChange={handleTabChange} isOpen={isSidebarOpen} />
-          <div className="content-panel">
-            {activeTab === 'projects' && (
-              <ProjectsFeedView 
-                projects={projects}
-                onProjectSelect={handleProjectSelect}
-              />
-            )}
-            {activeTab === 'projects-detail' && selectedProject && (
-                <ProjectDetailView
-                    project={selectedProject}
-                    onBack={() => setActiveTab('projects')}
-                    onAddSubproject={() => setCreateSubprojectModalOpen(true)}
-                    onDeleteSubproject={handleDeleteSubproject}
-                    onKeyVisualUpload={handleKeyVisualUpload}
-                    onPostComment={handlePostComment}
-                />
-            )}
-            {activeTab === 'clients' && !selectedClient && (
-                <ClientsView 
-                    clients={clients} 
-                    onClientSelect={setSelectedClient} 
-                    onCreateClient={() => setCreateClientModalOpen(true)}
-                />
-            )}
-            {activeTab === 'clients' && selectedClient && (
-                <ClientDetailView
-                    client={selectedClient}
-                    projects={projects.filter(p => p.clientId === selectedClient.id)}
-                    files={files}
-                    onBack={() => setSelectedClient(null)}
+      <>
+        <Style />
+        <div className="app-container">
+            <Header agencyName={agencyName} currentUser={currentUser} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
+            <main className="main-content">
+              <div className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)}></div>
+              <Sidebar activeTab={activeTab} onTabChange={handleTabChange} isOpen={isSidebarOpen} />
+              <div className="content-panel">
+                {activeTab === 'projects' && (
+                  <ProjectsFeedView 
+                    projects={projects}
                     onProjectSelect={handleProjectSelect}
-                    onDeleteProject={handleDeleteProject}
-                    onOpenStatusModal={handleOpenStatusModal}
-                    onCreateProject={() => setCreateModalOpen(true)}
-                    clientAssets={clientAssets.filter(a => a.clientId === selectedClient.id)}
-                    onLogoUpload={handleClientLogoUpload}
-                    onAssetUpload={handleClientAssetUpload}
+                  />
+                )}
+                {activeTab === 'projects-detail' && selectedProject && (
+                    <ProjectDetailView
+                        project={selectedProject}
+                        onBack={() => setActiveTab('projects')}
+                        onAddSubproject={() => setCreateSubprojectModalOpen(true)}
+                        onDeleteSubproject={handleDeleteSubproject}
+                        onKeyVisualUpload={handleKeyVisualUpload}
+                        onPostComment={handlePostComment}
+                    />
+                )}
+                {activeTab === 'clients' && !selectedClient && (
+                    <ClientsView 
+                        clients={clients} 
+                        onClientSelect={setSelectedClient} 
+                        onCreateClient={() => setCreateClientModalOpen(true)}
+                    />
+                )}
+                {activeTab === 'clients' && selectedClient && (
+                    <ClientDetailView
+                        client={selectedClient}
+                        projects={projects.filter(p => p.clientId === selectedClient.id)}
+                        files={files}
+                        onBack={() => setSelectedClient(null)}
+                        onProjectSelect={handleProjectSelect}
+                        onDeleteProject={handleDeleteProject}
+                        onOpenStatusModal={handleOpenStatusModal}
+                        onCreateProject={() => setCreateModalOpen(true)}
+                        clientAssets={clientAssets.filter(a => a.clientId === selectedClient.id)}
+                        onLogoUpload={handleClientLogoUpload}
+                        onAssetUpload={handleClientAssetUpload}
+                    />
+                )}
+                {activeTab === 'cases' && (
+                    <CasesView 
+                        projects={projects} 
+                        clients={clients}
+                        onExportCase={handleExportCasePDF}
+                    />
+                )}
+                 {activeTab === 'team' && !selectedMember && (
+                   <TeamView 
+                     members={teamMembers} 
+                     permissions={teamPermissions} 
+                     onRegisterClick={() => setRegisterMemberModalOpen(true)}
+                     onMemberSelect={setSelectedMember}
+                    />
+                )}
+                {activeTab === 'team' && selectedMember && (
+                    <TeamMemberProfileView
+                        member={selectedMember}
+                        clients={clients}
+                        onBack={() => setSelectedMember(null)}
+                        onUpdateProfile={handleUpdateMemberProfile}
+                        onAvatarUpload={handleMemberAvatarUpload}
+                    />
+                )}
+              </div>
+            </main>
+            {previewingFile && <FilePreviewModal file={previewingFile} onClose={() => setPreviewingFile(null)} />}
+            {isCreateModalOpen && <CreateProjectModal clients={clients} onCreateProject={handleCreateProject} onClose={() => setCreateModalOpen(false)} />}
+            {isCreateClientModalOpen && <CreateClientModal onCreateClient={handleCreateClient} onClose={() => setCreateClientModalOpen(false)} />}
+            {isCreateSubprojectModalOpen && <CreateSubprojectModal onCreateSubproject={handleCreateSubproject} onClose={() => setCreateSubprojectModalOpen(false)} />}
+            {isRegisterMemberModalOpen && <RegisterMemberModal onRegisterMember={handleRegisterMember} onClose={() => setRegisterMemberModalOpen(false)} />}
+            {isStatusModalOpen && projectToUpdateStatus && (
+                <UpdateStatusModal
+                    project={projectToUpdateStatus}
+                    stati={projectStati}
+                    onUpdateStatus={handleUpdateProjectStatus}
+                    onClose={() => setStatusModalOpen(false)}
                 />
             )}
-            {activeTab === 'cases' && (
-                <CasesView 
-                    projects={projects} 
-                    clients={clients}
-                    onExportCase={handleExportCasePDF}
-                />
-            )}
-             {activeTab === 'team' && !selectedMember && (
-               <TeamView 
-                 members={teamMembers} 
-                 permissions={teamPermissions} 
-                 onRegisterClick={() => setRegisterMemberModalOpen(true)}
-                 onMemberSelect={setSelectedMember}
-                />
-            )}
-            {activeTab === 'team' && selectedMember && (
-                <TeamMemberProfileView
-                    member={selectedMember}
-                    clients={clients}
-                    onBack={() => setSelectedMember(null)}
-                    onUpdateProfile={handleUpdateMemberProfile}
-                    onAvatarUpload={handleMemberAvatarUpload}
-                />
-            )}
-          </div>
-        </main>
-        {previewingFile && <FilePreviewModal file={previewingFile} onClose={() => setPreviewingFile(null)} />}
-        {isCreateModalOpen && <CreateProjectModal clients={clients} onCreateProject={handleCreateProject} onClose={() => setCreateModalOpen(false)} />}
-        {isCreateClientModalOpen && <CreateClientModal onCreateClient={handleCreateClient} onClose={() => setCreateClientModalOpen(false)} />}
-        {isCreateSubprojectModalOpen && <CreateSubprojectModal onCreateSubproject={handleCreateSubproject} onClose={() => setCreateSubprojectModalOpen(false)} />}
-        {isRegisterMemberModalOpen && <RegisterMemberModal onRegisterMember={handleRegisterMember} onClose={() => setRegisterMemberModalOpen(false)} />}
-        {isStatusModalOpen && projectToUpdateStatus && (
-            <UpdateStatusModal
-                project={projectToUpdateStatus}
-                stati={projectStati}
-                onUpdateStatus={handleUpdateProjectStatus}
-                onClose={() => setStatusModalOpen(false)}
-            />
-        )}
-      </div>
+        </div>
+      </>
     );
 };
 
-const AdminDashboard = ({ users, onLogout }) => {
+const AdminDashboard = ({ users, onLogout, onDeleteUser }) => {
     return (
-        <div className="admin-dashboard">
-            <header className="admin-header">
-                <div className="logo-section">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="3" width="18" height="18" rx="4" ry="4" fill="var(--primary-end)" />
-                        <path d="M7 15.5V9.5C7 8.11929 8.11929 7 9.5 7C10.8807 7 12 8.11929 12 9.5V11.5C12 10.1193 13.1193 9 14.5 9C15.8807 9 17 10.1193 17 11.5V15.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <h3>Painel ADM - Manda Hub</h3>
-                </div>
-                <button onClick={onLogout} className="logout-button" title="Sair">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>
-            </header>
-            <main className="admin-content">
-                <div className="view-header">
-                    <div>
-                        <h1 className="gradient-text">Agências Cadastradas</h1>
-                        <p>Visualize e gerencie todas as agências na plataforma.</p>
+        <>
+            <Style />
+            <div className="admin-dashboard">
+                <header className="admin-header">
+                    <div className="logo-section">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="3" y="3" width="18" height="18" rx="4" ry="4" fill="var(--primary-end)" />
+                            <path d="M7 15.5V9.5C7 8.11929 8.11929 7 9.5 7C10.8807 7 12 8.11929 12 9.5V11.5C12 10.1193 13.1193 9 14.5 9C15.8807 9 17 10.1193 17 11.5V15.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <h3>Painel ADM - Manda Hub</h3>
                     </div>
-                </div>
-                <div className="agency-list-container">
-                    {users.length > 0 ? (
-                        <table className="agency-table">
-                            <thead>
-                                <tr>
-                                    <th>Nome da Agência</th>
-                                    <th>Nome do Dono</th>
-                                    <th>Email de Login</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {users.map(user => (
-                                    <tr key={user.id}>
-                                        <td>{user.agencyName}</td>
-                                        <td>{user.name}</td>
-                                        <td>{user.email}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    ) : (
-                        <div className="empty-state">
-                            <h3>Nenhuma agência cadastrada</h3>
-                            <p>Quando novas agências se registrarem, elas aparecerão aqui.</p>
+                    <button onClick={onLogout} className="logout-button" title="Sair">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    </button>
+                </header>
+                <main className="admin-content">
+                    <div className="view-header">
+                        <div>
+                            <h1 className="gradient-text">Agências Cadastradas</h1>
+                            <p>Visualize e gerencie todas as agências na plataforma.</p>
                         </div>
-                    )}
-                </div>
-            </main>
-        </div>
+                    </div>
+                    <div className="agency-list-container">
+                        {users.length > 0 ? (
+                            <table className="agency-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome da Agência</th>
+                                        <th>Nome do Dono</th>
+                                        <th>Email de Login</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {users.map(user => (
+                                        <tr key={user.id}>
+                                            <td>{user.agencyName}</td>
+                                            <td>{user.name}</td>
+                                            <td>{user.email}</td>
+                                            <td>
+                                                <button onClick={() => onDeleteUser(user.id)} className="delete-agency-button" title="Excluir agência">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <div className="empty-state">
+                                <h3>Nenhuma agência cadastrada</h3>
+                                <p>Quando novas agências se registrarem, elas aparecerão aqui.</p>
+                            </div>
+                        )}
+                    </div>
+                </main>
+            </div>
+        </>
     );
 };
 
@@ -704,7 +737,6 @@ const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
         onRegister({ agencyName, ownerName, ownerEmail, password });
     };
 
-    // FIX: Explicitly type SwitchModeButton as a React Functional Component to define its props, including 'children'.
     const SwitchModeButton: React.FC<{ onClick: () => void; children: React.ReactNode }> = ({ onClick, children }) => (
         <button type="button" onClick={onClick} className="switch-auth-mode-button">
             {children}
@@ -712,69 +744,72 @@ const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
     );
 
     return (
-        <div className="auth-container">
-            <div className="auth-modal">
-                {isLoginView ? (
-                    <>
-                        <header className="auth-modal-header">
-                            <div>
-                                <h3 className="gradient-text">Bem-vindo de volta!</h3>
-                                <p>Faça login para acessar seu hub.</p>
-                            </div>
-                        </header>
-                        <form onSubmit={handleLoginSubmit}>
-                            <div className="form-group">
-                                <label htmlFor="loginEmail">E-mail</label>
-                                <input type="email" id="loginEmail" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="loginPassword">Senha</label>
-                                <input type="password" id="loginPassword" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
-                            </div>
-                            <div className="form-actions" style={{justifyContent: 'center', marginTop: '2.5rem'}}>
-                                <button type="submit" className="button-primary" style={{width: '100%', padding: '0.8rem'}}>Entrar</button>
-                            </div>
-                        </form>
-                        <p className="auth-switcher-text">
-                            Não tem uma conta? <SwitchModeButton onClick={() => setIsLoginView(false)}>Cadastre-se</SwitchModeButton>
-                        </p>
-                    </>
-                ) : (
-                    <>
-                        <header className="auth-modal-header">
-                            <div>
-                                <h3 className="gradient-text">Bem-vindo ao Manda Hub!</h3>
-                                <p>Vamos configurar sua agência.</p>
-                            </div>
-                        </header>
-                        <form onSubmit={handleRegisterSubmit}>
-                            <div className="form-group">
-                                <label htmlFor="agencyName">Nome da Agência/Empresa</label>
-                                <input type="text" id="agencyName" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} required />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="ownerName">Seu Nome Completo</label>
-                                <input type="text" id="ownerName" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="ownerEmail">Seu E-mail (será seu login)</label>
-                                <input type="email" id="ownerEmail" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} required />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="password">Crie uma Senha</label>
-                                <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                            </div>
-                            <div className="form-actions" style={{justifyContent: 'center', marginTop: '2.5rem'}}>
-                                <button type="submit" className="button-primary" style={{width: '100%', padding: '0.8rem'}}>Concluir Configuração</button>
-                            </div>
-                        </form>
-                         <p className="auth-switcher-text">
-                            Já tem uma conta? <SwitchModeButton onClick={() => setIsLoginView(true)}>Faça login</SwitchModeButton>
-                        </p>
-                    </>
-                )}
+        <>
+            <Style />
+            <div className="auth-container">
+                <div className="auth-modal">
+                    {isLoginView ? (
+                        <>
+                            <header className="auth-modal-header">
+                                <div>
+                                    <h3 className="gradient-text">Bem-vindo de volta!</h3>
+                                    <p>Faça login para acessar seu hub.</p>
+                                </div>
+                            </header>
+                            <form onSubmit={handleLoginSubmit}>
+                                <div className="form-group">
+                                    <label htmlFor="loginEmail">E-mail</label>
+                                    <input type="email" id="loginEmail" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="loginPassword">Senha</label>
+                                    <input type="password" id="loginPassword" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
+                                </div>
+                                <div className="form-actions" style={{justifyContent: 'center', marginTop: '2.5rem'}}>
+                                    <button type="submit" className="button-primary" style={{width: '100%', padding: '0.8rem'}}>Entrar</button>
+                                </div>
+                            </form>
+                            <p className="auth-switcher-text">
+                                Não tem uma conta? <SwitchModeButton onClick={() => setIsLoginView(false)}>Cadastre-se</SwitchModeButton>
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <header className="auth-modal-header">
+                                <div>
+                                    <h3 className="gradient-text">Bem-vindo ao Manda Hub!</h3>
+                                    <p>Vamos configurar sua agência.</p>
+                                </div>
+                            </header>
+                            <form onSubmit={handleRegisterSubmit}>
+                                <div className="form-group">
+                                    <label htmlFor="agencyName">Nome da Agência/Empresa</label>
+                                    <input type="text" id="agencyName" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="ownerName">Seu Nome Completo</label>
+                                    <input type="text" id="ownerName" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="ownerEmail">Seu E-mail (será seu login)</label>
+                                    <input type="email" id="ownerEmail" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} required />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="password">Crie uma Senha</label>
+                                    <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                                </div>
+                                <div className="form-actions" style={{justifyContent: 'center', marginTop: '2.5rem'}}>
+                                    <button type="submit" className="button-primary" style={{width: '100%', padding: '0.8rem'}}>Concluir Configuração</button>
+                                </div>
+                            </form>
+                             <p className="auth-switcher-text">
+                                Já tem uma conta? <SwitchModeButton onClick={() => setIsLoginView(true)}>Faça login</SwitchModeButton>
+                            </p>
+                        </>
+                    )}
+                </div>
             </div>
-        </div>
+        </>
     );
 };
 
@@ -889,7 +924,6 @@ const ProjectsFeedView = ({ projects, onProjectSelect }) => {
         setFeed(generateActivityFeed(projects));
     }, [projects]);
     
-    // FIX: Explicitly type ActivityItem as a React Functional Component to allow the 'key' prop.
     const ActivityItem: React.FC<{ item: any }> = ({ item }) => {
         const { type, timestamp, data } = item;
         const user = data.user;
@@ -929,14 +963,19 @@ const ProjectsFeedView = ({ projects, onProjectSelect }) => {
                 </div>
             </div>
             <div className="activity-list">
-                {feed.map(item => <ActivityItem key={item.id} item={item} />)}
+                {feed.length > 0 ? (
+                    feed.map(item => <ActivityItem key={item.id} item={item} />)
+                ) : (
+                     <div className="empty-state">
+                        <h3>Nenhuma atividade ainda</h3>
+                        <p>Crie um projeto ou adicione um comentário para começar.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-
-// FIX: Explicitly type ProjectCard as a React Functional Component to allow the 'key' prop.
 const ProjectCard: React.FC<{
     project: any;
     filesCount: any;
@@ -970,15 +1009,15 @@ const ProjectCard: React.FC<{
 
     const handleStatusClick = (e) => {
         e.stopPropagation();
-        onOpenStatusModal();
+        onOpenStatusModal(project);
     };
     
     return (
         <div className="project-card" onClick={onClick}>
             <div className="project-card-header">
                 <h3>{name}</h3>
-                <button onClick={(e) => { e.stopPropagation(); /* TODO: Implement dropdown menu */ }} className="options-button">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                <button onClick={(e) => { e.stopPropagation(); onDeleteProject(e, project.id); }} className="options-button delete-project-button" title="Excluir projeto">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
             </div>
             <p className="project-card-description">{description}</p>
@@ -1027,84 +1066,6 @@ const ProjectCard: React.FC<{
 const ProjectDetailView = ({ project, onBack, onAddSubproject, onDeleteSubproject, onKeyVisualUpload, onPostComment }) => {
     const kvInputRef = useRef(null);
 
-    const handleExportPDF = async () => {
-        if (!window.jspdf) {
-            alert("PDF library not loaded. Please try again.");
-            return;
-        }
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const margin = 15;
-        let y = margin;
-    
-        const addText = (text, size, isBold, yPos) => {
-            if (yPos > pageHeight - margin) {
-                doc.addPage();
-                yPos = margin;
-            }
-            doc.setFontSize(size);
-            doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-            const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
-            doc.text(lines, margin, yPos);
-            return yPos + (lines.length * (size * 0.35)) + 5;
-        };
-    
-        y = addText(project.name, 22, true, y);
-        y += 5;
-    
-        if (project.keyVisual) {
-            y = addText('Key Visual', 16, true, y);
-            try {
-                const img = new Image();
-                img.crossOrigin = "anonymous";
-                img.src = project.keyVisual;
-                await new Promise((resolve, reject) => { 
-                    img.onload = resolve;
-                    img.onerror = reject;
-                });
-                
-                const imgProps = doc.getImageProperties(img);
-                const aspect = imgProps.width / imgProps.height;
-                let imgWidth = pageWidth - margin * 2;
-                let imgHeight = imgWidth / aspect;
-    
-                if (y + imgHeight > pageHeight - margin) {
-                    doc.addPage();
-                    y = margin;
-                }
-    
-                doc.addImage(img, 'JPEG', margin, y, imgWidth, imgHeight);
-                y += imgHeight + 10;
-            } catch (error) {
-                console.error("Error adding image to PDF:", error);
-                y = addText('Não foi possível carregar a imagem.', 10, false, y);
-            }
-        }
-    
-        if (project.subprojects && project.subprojects.length > 0) {
-            if (y > pageHeight - margin - 20) {
-                doc.addPage();
-                y = margin;
-            }
-            y = addText('Subprojetos / Desdobramentos', 18, true, y);
-    
-            project.subprojects.forEach(sp => {
-                if (y > pageHeight - margin - 20) {
-                     doc.addPage();
-                     y = margin;
-                }
-                y = addText(sp.name, 14, true, y);
-                y = addText(sp.description, 11, false, y);
-                y += 5;
-            });
-        }
-    
-        doc.save(`${project.name.replace(/\s/g, '_')}.pdf`);
-    };
-
     return (
         <section className="project-detail-view">
             <div className="panel-header">
@@ -1114,19 +1075,13 @@ const ProjectDetailView = ({ project, onBack, onAddSubproject, onDeleteSubprojec
                     </button>
                     <h4>{project.name}</h4>
                 </div>
-                 <div className="panel-header-right">
-                    <button onClick={handleExportPDF} className="button-secondary">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        Exportar PDF
-                    </button>
-                </div>
             </div>
             <div className="project-detail-content">
                 <div className="key-visual-panel">
                     <div className="kv-display-area">
                         {project.keyVisual 
                             ? <img src={project.keyVisual} alt="Key Visual" /> 
-                            : <div className="kv-placeholder"></div>
+                            : <div className="kv-placeholder"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg><span>Nenhum KV carregado</span></div>
                         }
                     </div>
                      <button onClick={() => kvInputRef.current?.click()} className="button-primary kv-upload-button">
@@ -1230,12 +1185,13 @@ const FilePreviewModal = ({ file, onClose }) => {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="modal-close-button">&times;</button>
         {file.content && file.type?.startsWith('image/') ? (
-          <img src={file.content} alt={`Preview of ${file.name}`} />
+          <img src={file.content} alt={`Preview of ${file.name}`} style={{maxWidth: '100%', maxHeight: '80vh', display: 'block'}}/>
         ) : (
           <div className="non-image-preview">
-            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
-            <h4>{file.name}</h4>
-            <p>Não é possível pré-visualizar este tipo de arquivo.</p>
+            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--text-secondary)', marginBottom: '1rem'}}><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+            <h3>{file.name}</h3>
+            <p style={{color: 'var(--text-secondary)', margin: '0.5rem 0 2rem 0'}}>{file.type} - {file.size}</p>
+            <a href={file.content || '#'} download={file.name} className="button-primary">Download</a>
           </div>
         )}
       </div>
@@ -1246,88 +1202,45 @@ const FilePreviewModal = ({ file, onClose }) => {
 const CreateProjectModal = ({ clients, onCreateProject, onClose }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [dueDate, setDueDate] = useState('');
-    const [status, setStatus] = useState('Em Andamento');
     const [clientId, setClientId] = useState('');
+    const [dueDate, setDueDate] = useState('');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!name.trim() || !clientId || !dueDate) return;
-        onCreateProject({ name, description, dueDate, status, clientId });
+        onCreateProject({ name, description, clientId, dueDate, status: 'Planejado' });
     };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="create-project-modal" onClick={(e) => e.stopPropagation()}>
-                <header className="create-project-modal-header">
-                    <h3 className="gradient-text">Novo Projeto</h3>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <header className="modal-header">
+                    <h3>Criar Novo Projeto</h3>
                     <button onClick={onClose} className="modal-close-button">&times;</button>
                 </header>
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} className="modal-body">
                     <div className="form-group">
                         <label htmlFor="projectName">Nome do Projeto</label>
-                        <input
-                            type="text"
-                            id="projectName"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Ex: Website Redesign"
-                            required
-                        />
+                        <input id="projectName" type="text" value={name} onChange={e => setName(e.target.value)} required />
                     </div>
-                     <div className="form-group">
+                    <div className="form-group">
+                        <label htmlFor="projectDesc">Descrição</label>
+                        <textarea id="projectDesc" value={description} onChange={e => setDescription(e.target.value)} rows="3"></textarea>
+                    </div>
+                    <div className="form-group">
                         <label htmlFor="projectClient">Cliente</label>
-                        <select
-                            id="projectClient"
-                            value={clientId}
-                            onChange={(e) => setClientId(e.target.value)}
-                            required
-                        >
+                        <select id="projectClient" value={clientId} onChange={e => setClientId(e.target.value)} required>
                             <option value="" disabled>Selecione um cliente</option>
                             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
-                        <label htmlFor="projectDescription">Descrição</label>
-                        <textarea
-                            id="projectDescription"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Descreva o projeto..."
-                            rows={3}
-                        ></textarea>
+                        <label htmlFor="projectDueDate">Data de Entrega</label>
+                        <input id="projectDueDate" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
                     </div>
-                    <div className="form-group">
-                        <label htmlFor="projectDueDate">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                            Data de Entrega
-                        </label>
-                        <input
-                            type="date"
-                            id="projectDueDate"
-                            value={dueDate}
-                            onChange={(e) => setDueDate(e.target.value)}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="projectStatus">Status</label>
-                        <select
-                            id="projectStatus"
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value)}
-                        >
-                            <option>Planejado</option>
-                            <option>Em Andamento</option>
-                            <option>Em Revisão</option>
-                            <option>Pausado</option>
-                            <option>Concluído</option>
-                        </select>
-                    </div>
-                    <div className="form-actions">
-                        <button type="button" onClick={onClose} className="button-secondary">Cancelar</button>
-                        <button type="submit" className="button-primary" disabled={!name.trim() || !clientId || !dueDate}>Criar Projeto</button>
-                    </div>
+                    <footer className="modal-footer">
+                        <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
+                        <button type="submit" className="button-primary">Criar Projeto</button>
+                    </footer>
                 </form>
             </div>
         </div>
@@ -1340,457 +1253,153 @@ const CreateSubprojectModal = ({ onCreateSubproject, onClose }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!name.trim()) return;
         onCreateSubproject({ name, description });
     };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="create-project-modal" onClick={(e) => e.stopPropagation()}>
-                <header className="create-project-modal-header">
-                    <h3 className="gradient-text">Novo Subprojeto</h3>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                 <header className="modal-header">
+                    <h3>Adicionar Subprojeto</h3>
                     <button onClick={onClose} className="modal-close-button">&times;</button>
                 </header>
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} className="modal-body">
                     <div className="form-group">
-                        <label htmlFor="subprojectName">Título do Subprojeto</label>
-                        <input
-                            type="text"
-                            id="subprojectName"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Ex: Peça para Instagram"
-                            required
-                        />
+                        <label htmlFor="subprojectName">Nome do Subprojeto/Peça</label>
+                        <input id="subprojectName" type="text" value={name} onChange={e => setName(e.target.value)} required />
                     </div>
                     <div className="form-group">
-                        <label htmlFor="subprojectDescription">Descrição</label>
-                        <textarea
-                            id="subprojectDescription"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Descreva a peça ou tarefa..."
-                            rows={3}
-                        ></textarea>
+                        <label htmlFor="subprojectDesc">Descrição</label>
+                        <textarea id="subprojectDesc" value={description} onChange={e => setDescription(e.target.value)} rows="3" required></textarea>
                     </div>
-                    <div className="form-actions">
-                        <button type="button" onClick={onClose} className="button-secondary">Cancelar</button>
-                        <button type="submit" className="button-primary" disabled={!name.trim()}>Criar</button>
-                    </div>
+                    <footer className="modal-footer">
+                        <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
+                        <button type="submit" className="button-primary">Adicionar</button>
+                    </footer>
                 </form>
             </div>
         </div>
     );
+};
+
+const CreateClientModal = ({ onCreateClient, onClose }) => {
+    const [name, setName] = useState('');
+    const [contactPerson, setContactPerson] = useState('');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onCreateClient({ name, contactPerson, email, phone, logoUrl: `https://avatar.vercel.sh/${name}.svg?text=${name.substring(0, 2)}` });
+    };
+    
+    return (
+         <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                 <header className="modal-header">
+                    <h3>Novo Cliente</h3>
+                    <button onClick={onClose} className="modal-close-button">&times;</button>
+                </header>
+                <form onSubmit={handleSubmit} className="modal-body">
+                    <div className="form-group">
+                        <label htmlFor="clientName">Nome do Cliente</label>
+                        <input id="clientName" type="text" value={name} onChange={e => setName(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="clientContact">Pessoa de Contato</label>
+                        <input id="clientContact" type="text" value={contactPerson} onChange={e => setContactPerson(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="clientEmail">Email</label>
+                        <input id="clientEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="clientPhone">Telefone</label>
+                        <input id="clientPhone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+                    </div>
+                    <footer className="modal-footer">
+                        <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
+                        <button type="submit" className="button-primary">Salvar Cliente</button>
+                    </footer>
+                </form>
+            </div>
+        </div>
+    )
 };
 
 const RegisterMemberModal = ({ onRegisterMember, onClose }) => {
     const [name, setName] = useState('');
-    const [role, setRole] = useState('Developer');
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [role, setRole] = useState('Designer');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!name.trim() || !email.trim() || !password.trim()) return;
-        onRegisterMember({ name, role, email });
+        onRegisterMember({ name, email, role });
     };
-
+    
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="create-project-modal" onClick={(e) => e.stopPropagation()}>
-                <header className="create-project-modal-header">
-                    <h3 className="gradient-text">Cadastrar Membro</h3>
+         <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                 <header className="modal-header">
+                    <h3>Registrar Novo Membro</h3>
                     <button onClick={onClose} className="modal-close-button">&times;</button>
                 </header>
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} className="modal-body">
                     <div className="form-group">
                         <label htmlFor="memberName">Nome Completo</label>
-                        <input
-                            type="text"
-                            id="memberName"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Ex: João da Silva"
-                            required
-                        />
+                        <input id="memberName" type="text" value={name} onChange={e => setName(e.target.value)} required />
                     </div>
                     <div className="form-group">
-                        <label htmlFor="memberRole">Função</label>
-                        <select
-                            id="memberRole"
-                            value={role}
-                            onChange={(e) => setRole(e.target.value)}
-                        >
-                            <option>Developer</option>
-                            <option>Designer</option>
-                            <option>Owner</option>
+                        <label htmlFor="memberEmail">Email</label>
+                        <input id="memberEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                    </div>
+                     <div className="form-group">
+                        <label htmlFor="memberRole">Cargo</label>
+                        <select id="memberRole" value={role} onChange={e => setRole(e.target.value)} required>
+                            <option value="Designer">Designer</option>
+                            <option value="Developer">Developer</option>
                         </select>
                     </div>
-                    <div className="form-group">
-                        <label htmlFor="memberEmail">E-mail</label>
-                        <input
-                            type="email"
-                            id="memberEmail"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="joao.silva@email.com"
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="memberPassword">Senha</label>
-                        <input
-                            type="password"
-                            id="memberPassword"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
-                            required
-                        />
-                    </div>
-                    <div className="form-actions">
-                        <button type="button" onClick={onClose} className="button-secondary">Cancelar</button>
-                        <button type="submit" className="button-primary" disabled={!name.trim() || !email.trim() || !password.trim()}>Cadastrar</button>
-                    </div>
+                    <footer className="modal-footer">
+                        <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
+                        <button type="submit" className="button-primary">Registrar</button>
+                    </footer>
                 </form>
             </div>
         </div>
-    );
+    )
 };
 
 const UpdateStatusModal = ({ project, stati, onUpdateStatus, onClose }) => {
-    const [selectedStatus, setSelectedStatus] = useState(project.status);
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onUpdateStatus(project.id, selectedStatus);
+    
+    const handleStatusUpdate = (newStatus) => {
+        onUpdateStatus(project.id, newStatus);
     };
-
+    
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="create-project-modal" onClick={(e) => e.stopPropagation()}>
-                <header className="create-project-modal-header">
-                    <div>
-                        <h3 className="gradient-text">Alterar Status</h3>
-                        <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{project.name}</p>
-                    </div>
+            <div className="modal-content status-modal" onClick={e => e.stopPropagation()}>
+                <header className="modal-header">
+                    <h3>Alterar Status</h3>
+                    <p>Projeto: <strong>{project.name}</strong></p>
                     <button onClick={onClose} className="modal-close-button">&times;</button>
                 </header>
-                <form onSubmit={handleSubmit}>
-                    <div className="form-group status-radio-group">
-                        <label>Selecione o novo status</label>
+                 <div className="modal-body">
+                    <div className="status-grid">
                         {stati.map(status => (
-                            <div key={status} className="radio-option">
-                                <input
-                                    type="radio"
-                                    id={`status-${status.replace(/\s+/g, '-')}`}
-                                    name="projectStatus"
-                                    value={status}
-                                    checked={selectedStatus === status}
-                                    onChange={(e) => setSelectedStatus(e.target.value)}
-                                />
-                                <label htmlFor={`status-${status.replace(/\s+/g, '-')}`}>{status}</label>
-                            </div>
+                            <button 
+                                key={status} 
+                                className={`button-status ${project.status === status ? 'active' : ''}`}
+                                onClick={() => handleStatusUpdate(status)}
+                            >
+                                {status}
+                            </button>
                         ))}
                     </div>
-                    <div className="form-actions">
-                        <button type="button" onClick={onClose} className="button-secondary">Cancelar</button>
-                        <button type="submit" className="button-primary">Atualizar Status</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-const CasesView = ({ projects, clients, onExportCase }) => {
-    const approvedProjects = projects.filter(p => p.status === 'Aprovado');
-
-    return (
-        <div className="cases-view">
-            <div className="view-header">
-                <div>
-                    <h1 className="gradient-text">Cases de Sucesso</h1>
-                    <p>Um portfólio dos seus melhores projetos finalizados</p>
-                </div>
-            </div>
-            {approvedProjects.length > 0 ? (
-                <div className="cases-grid">
-                    {approvedProjects.map(project => (
-                        <CaseCard 
-                            key={project.id}
-                            project={project}
-                            client={clients.find(c => c.id === project.clientId)}
-                            onExport={() => onExportCase(project)}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <div className="empty-state">
-                    <h3>Nenhum case para mostrar</h3>
-                    <p>Projetos com o status "Aprovado" aparecerão aqui automaticamente.</p>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const CaseCard: React.FC<{ project: any; client: any; onExport: () => void; }> = ({ project, client, onExport }) => {
-    return (
-        <div className="case-card">
-            <div className="case-card-image">
-                {project.keyVisual ? (
-                    <img src={project.keyVisual} alt={`Key visual for ${project.name}`} />
-                ) : (
-                    <div className="kv-placeholder-case">
-                        <span>Sem KV</span>
-                    </div>
-                )}
-            </div>
-            <div className="case-card-content">
-                <div className="case-card-info">
-                    <h3>{project.name}</h3>
-                    <p>{client?.name || 'Cliente desconhecido'}</p>
-                </div>
-                <div className="case-card-actions">
-                    <button onClick={onExport} className="button-secondary">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        Exportar PDF
-                    </button>
                 </div>
             </div>
         </div>
     );
-};
-
-const FileDropzone: React.FC<{onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void}> = ({ onFileUpload }) => {
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    return (
-        <div className="file-dropzone" onClick={() => inputRef.current?.click()}>
-            <input type="file" ref={inputRef} onChange={onFileUpload} style={{ display: 'none' }} multiple />
-            <div className="dropzone-content">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="dropzone-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                <p className="dropzone-text"><strong>Arraste e solte seus arquivos aqui</strong></p>
-                <p className="dropzone-subtext">Ou clique para selecionar arquivos do seu computador</p>
-                <p className="dropzone-supported-files">Suporte para Figma, Sketch, Adobe XD, PDF, imagens e vídeos</p>
-            </div>
-        </div>
-    );
-};
-
-const TeamView = ({ members, permissions, onRegisterClick, onMemberSelect }) => (
-    <div className="team-view">
-        <div className="view-header">
-            <div>
-                <h1 className="gradient-text">Equipe</h1>
-                <p>Gerencie os membros da sua equipe de design</p>
-            </div>
-            <button onClick={onRegisterClick} className="button-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="17" y1="11" x2="23" y2="11"></line></svg>
-                Cadastrar Membro
-            </button>
-        </div>
-        <div className="team-content-grid">
-            <div className="team-card">
-                <div className="team-card-header">
-                    <h2>Membros da Equipe</h2>
-                    <span>{members.length}/{members.length} membros</span>
-                </div>
-                <div className="team-members-list">
-                    {members.map(member => <TeamMemberItem key={member.id} member={member} onSelect={onMemberSelect} />)}
-                </div>
-            </div>
-            <div className="team-card">
-                 <div className="team-card-header">
-                    <h2>Permissões da Equipe</h2>
-                </div>
-                <div className="permissions-list">
-                    {permissions.map(p => (
-                        <div key={p.role} className="permission-item">
-                            <div className="permission-icon"><RoleIcon role={p.role} /></div>
-                            <div className="permission-details">
-                                <h3>{p.role}</h3>
-                                <p>{p.description}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    </div>
-);
-
-// FIX: Explicitly type TeamMemberItem as a React Functional Component to allow the 'key' prop.
-const TeamMemberItem: React.FC<{ member: any; onSelect: (member: any) => void; }> = ({ member, onSelect }) => (
-    <div className="team-member-item" onClick={() => onSelect(member)}>
-        <div className="member-info">
-            <div className="avatar-wrapper">
-                <img src={member.avatarUrl} alt={member.name} className="avatar" />
-                <span className={`status-indicator ${member.status.toLowerCase()}`}></span>
-            </div>
-            <div className="member-details">
-                <div className="member-name-role">
-                    <span className="member-name">{member.name}</span>
-                    <span className="role-tag">
-                        <RoleIcon role={member.role} />
-                        {member.role}
-                    </span>
-                </div>
-                 <div className="member-email-wrapper">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                    <span className="member-email">{member.email}</span>
-                </div>
-            </div>
-        </div>
-        <div className="member-actions">
-            <span className={`status-badge status-${member.status.toLowerCase()}`}>{member.status}</span>
-             <button className="options-button" onClick={(e) => e.stopPropagation()}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
-            </button>
-        </div>
-    </div>
-);
-
-
-const TeamMemberProfileView: React.FC<{ member: any; clients: any[]; onBack: () => void; onUpdateProfile: (memberId: string, data: any) => void; onAvatarUpload: (memberId: string, file: File) => void; }> = ({ member, clients, onBack, onUpdateProfile, onAvatarUpload }) => {
-    const avatarInputRef = useRef<HTMLInputElement>(null);
-    const [isEditingName, setIsEditingName] = useState(false);
-    const [isEditingRole, setIsEditingRole] = useState(false);
-    const [name, setName] = useState(member.name);
-    const [role, setRole] = useState(member.role);
-
-    const handleNameBlur = () => {
-        setIsEditingName(false);
-        if (name.trim() && name !== member.name) {
-            onUpdateProfile(member.id, { name });
-        } else {
-            setName(member.name);
-        }
-    };
-
-    const handleRoleBlur = () => {
-        setIsEditingRole(false);
-        if (role.trim() && role !== member.role) {
-            onUpdateProfile(member.id, { role });
-        } else {
-            setRole(member.role);
-        }
-    };
-
-    const handleClientAssignmentChange = (clientId, isChecked) => {
-        const currentAssigned = member.assignedClients || [];
-        const newAssigned = isChecked
-            ? [...currentAssigned, clientId]
-            : currentAssigned.filter(id => id !== clientId);
-        onUpdateProfile(member.id, { assignedClients: newAssigned });
-    };
-
-    const assignedClientDetails = (member.assignedClients || []).map(id => clients.find(c => c.id === id)).filter(Boolean);
-
-    return (
-        <div className="team-member-profile-view">
-            <div className="panel-header">
-                <div className="panel-header-left">
-                    <button onClick={onBack} className="back-button" title="Voltar para a equipe">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                    </button>
-                    <h4>Perfil do Membro</h4>
-                </div>
-            </div>
-            <div className="profile-content">
-                <div className="profile-header-card">
-                    <div className="profile-avatar-container">
-                        <img src={member.avatarUrl} alt={member.name} className="profile-avatar" />
-                        <button className="avatar-upload-button" onClick={() => avatarInputRef.current?.click()}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                        </button>
-                        <input type="file" ref={avatarInputRef} onChange={(e) => onAvatarUpload(member.id, e.target.files[0])} style={{ display: 'none' }} accept="image/*" />
-                    </div>
-                    <div className="profile-info">
-                        {isEditingName ? (
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                onBlur={handleNameBlur}
-                                onKeyDown={(e) => e.key === 'Enter' && handleNameBlur()}
-                                autoFocus
-                                className="profile-name-input"
-                            />
-                        ) : (
-                            <h2 className="profile-name" onClick={() => setIsEditingName(true)}>{member.name}</h2>
-                        )}
-                         {isEditingRole ? (
-                            <input
-                                type="text"
-                                value={role}
-                                onChange={(e) => setRole(e.target.value)}
-                                onBlur={handleRoleBlur}
-                                onKeyDown={(e) => e.key === 'Enter' && handleRoleBlur()}
-                                autoFocus
-                                className="profile-role-input"
-                            />
-                        ) : (
-                             <p className="profile-role" onClick={() => setIsEditingRole(true)}>{member.role}</p>
-                        )}
-                        <div className="member-email-wrapper">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                            <span className="member-email">{member.email}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="profile-clients-card">
-                    <div className="team-card-header" style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)'}}>
-                        <h2>Clientes Atendidos</h2>
-                    </div>
-                    <div className="client-assignment-section">
-                        <div className="assigned-clients-list">
-                            {assignedClientDetails.length > 0 ? (
-                                assignedClientDetails.map(client => (
-                                    <div key={client.id} className="assigned-client-item">
-                                        <img src={client.logoUrl} alt={client.name} className="assigned-client-logo" />
-                                        <span>{client.name}</span>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="empty-state-small" style={{padding: '1rem 0'}}>Nenhum cliente atribuído.</p>
-                            )}
-                        </div>
-                        <div className="available-clients-list">
-                            <h3>Atribuir clientes</h3>
-                            {clients.map(client => (
-                                <div key={client.id} className="client-checkbox-item">
-                                    <input
-                                        type="checkbox"
-                                        id={`client-assign-${client.id}`}
-                                        checked={(member.assignedClients || []).includes(client.id)}
-                                        onChange={(e) => handleClientAssignmentChange(client.id, e.target.checked)}
-                                    />
-                                    <label htmlFor={`client-assign-${client.id}`}>{client.name}</label>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-const RoleIcon = ({ role }) => {
-    switch (role) {
-        case 'Owner':
-            return <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#F59E0B' }}><path d="M2 4l3 12h14l3-12-10 6z"></path></svg>;
-        case 'Designer':
-            return <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#22D3EE' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>;
-        case 'Developer':
-            return <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#A78BFA' }}><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>;
-        default:
-            return null;
-    }
 };
 
 const ClientsView = ({ clients, onClientSelect, onCreateClient }) => (
@@ -1798,1867 +1407,895 @@ const ClientsView = ({ clients, onClientSelect, onCreateClient }) => (
         <div className="view-header">
             <div>
                 <h1 className="gradient-text">Clientes</h1>
-                <p>Gerencie todos os seus clientes</p>
+                <p>Gerencie seus clientes e os projetos deles.</p>
             </div>
             <button onClick={onCreateClient} className="button-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                Cadastrar Cliente
+                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Novo Cliente</span>
             </button>
         </div>
-        <div className="client-grid">
-            {clients.map(c => <ClientCard key={c.id} client={c} onClick={() => onClientSelect(c)} />)}
-        </div>
-    </div>
-);
-
-// FIX: Explicitly type ClientCard as a React Functional Component to allow the 'key' prop.
-const ClientCard: React.FC<{ client: any; onClick: any }> = ({ client, onClick }) => (
-    <div className="client-card" onClick={onClick}>
-        <div className="client-card-logo-wrapper">
-            <img src={client.logoUrl} alt={`${client.name} logo`} className="client-card-logo" />
-        </div>
-        <div className="client-card-info">
-            <h3>{client.name}</h3>
-            <p>{client.contactPerson}</p>
+        <div className="clients-grid">
+            {clients.map(client => (
+                <div key={client.id} className="client-card" onClick={() => onClientSelect(client)}>
+                    <img src={client.logoUrl} alt={`${client.name} logo`} className="client-logo" />
+                    <h4>{client.name}</h4>
+                    <p>{client.contactPerson}</p>
+                </div>
+            ))}
         </div>
     </div>
 );
 
 const ClientDetailView = ({ client, projects, files, onBack, onProjectSelect, onDeleteProject, onOpenStatusModal, onCreateProject, clientAssets, onLogoUpload, onAssetUpload }) => {
-    const [activeDetailTab, setActiveDetailTab] = useState('projects');
-    const logoInputRef = useRef<HTMLInputElement>(null);
+    const logoInputRef = useRef(null);
+    const assetInputRef = useRef(null);
+
+    const handleAssetUpload = (e) => {
+        if (e.target.files.length > 0) {
+            onAssetUpload(client.id, e.target.files[0]);
+            e.target.value = null; // Reset input
+        }
+    };
     
     return (
-        <div className="client-detail-view">
-            <div className="panel-header">
+        <section className="client-detail-view">
+             <div className="panel-header">
                 <div className="panel-header-left">
-                     <button onClick={onBack} className="back-button" title="Voltar aos clientes">
+                     <button onClick={onBack} className="back-button" title="Voltar">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     </button>
-                    <div className="client-detail-header-info">
-                         <button className="client-logo-upload-trigger" onClick={() => logoInputRef.current?.click()} title="Trocar logo">
-                            <img src={client.logoUrl} alt={`${client.name} logo`} />
-                            <div className="logo-upload-overlay">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                            </div>
+                </div>
+            </div>
+            <div className="client-detail-header">
+                 <div className="client-logo-container">
+                    <img src={client.logoUrl} alt={`${client.name} logo`} className="client-detail-logo" />
+                    <button className="upload-logo-btn" onClick={() => logoInputRef.current?.click()}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                    </button>
+                    <input type="file" ref={logoInputRef} onChange={(e) => onLogoUpload(client.id, e.target.files[0])} accept="image/*" style={{display: 'none'}} />
+                 </div>
+                 <div>
+                    <h1 className="gradient-text">{client.name}</h1>
+                    <div className="client-contact-info">
+                        <span>{client.contactPerson}</span>
+                        <span>&middot;</span>
+                        <a href={`mailto:${client.email}`}>{client.email}</a>
+                        <span>&middot;</span>
+                        <a href={`tel:${client.phone}`}>{client.phone}</a>
+                    </div>
+                 </div>
+            </div>
+
+            <div className="client-detail-content">
+                <div className="client-projects-section">
+                     <div className="section-header">
+                        <h2>Projetos</h2>
+                        <button onClick={onCreateProject} className="button-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            <span>Novo Projeto</span>
                         </button>
-                        <input type="file" ref={logoInputRef} onChange={(e) => onLogoUpload(client.id, e.target.files[0])} style={{ display: 'none' }} accept="image/*" />
-                        <h4>{client.name}</h4>
+                    </div>
+                    <div className="projects-grid">
+                        {projects.length > 0 ? projects.map(p => (
+                            <ProjectCard 
+                                key={p.id}
+                                project={p}
+                                filesCount={files.filter(f => f.projectId === p.id).length}
+                                subprojectsCount={p.subprojects?.length || 0}
+                                onDeleteProject={onDeleteProject}
+                                onClick={() => onProjectSelect(p)}
+                                onOpenStatusModal={onOpenStatusModal}
+                            />
+                        )) : (
+                             <div className="empty-state">
+                                <h3>Nenhum projeto para este cliente</h3>
+                                <p>Clique em "Novo Projeto" para começar.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
-                 <div className="panel-header-right">
-                    <button onClick={onCreateProject} className="button-primary">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        Novo Projeto
+                <aside className="client-assets-section">
+                     <div className="section-header">
+                        <h4>Ativos do Cliente</h4>
+                        <button className="button-secondary-small" onClick={() => assetInputRef.current?.click()}>
+                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                           Carregar
+                        </button>
+                        <input type="file" ref={assetInputRef} onChange={handleAssetUpload} style={{display: 'none'}} />
+                    </div>
+                    <div className="asset-list">
+                        {clientAssets.length > 0 ? clientAssets.map(asset => (
+                            <div key={asset.id} className="asset-item">
+                                {getFileIcon(asset.type)}
+                                <div className="asset-info">
+                                    <a href={asset.url} download={asset.name} title={asset.name}>{asset.name}</a>
+                                    <span>{asset.size} - {timeSince(asset.uploadedAt)}</span>
+                                </div>
+                            </div>
+                        )) : (
+                            <p className="empty-state-small">Nenhum ativo carregado.</p>
+                        )}
+                    </div>
+                </aside>
+            </div>
+
+        </section>
+    );
+};
+
+const CasesView = ({ projects, clients, onExportCase }) => {
+    const approvedProjects = projects.filter(p => p.status === 'Aprovado' && p.progress === 100);
+
+    return (
+        <div className="cases-view">
+             <div className="view-header">
+                <div>
+                    <h1 className="gradient-text">Cases de Sucesso</h1>
+                    <p>Projetos aprovados e concluídos que se tornaram cases.</p>
+                </div>
+            </div>
+            <div className="cases-grid">
+                {approvedProjects.length > 0 ? (
+                    approvedProjects.map(project => {
+                        const client = clients.find(c => c.id === project.clientId);
+                        return (
+                            <div key={project.id} className="case-card">
+                                {project.keyVisual && <img src={project.keyVisual} alt={project.name} className="case-card-kv" />}
+                                <div className="case-card-content">
+                                    <h4>{project.name}</h4>
+                                    <p>Cliente: {client ? client.name : 'N/A'}</p>
+                                    <button onClick={() => onExportCase(project)} className="button-secondary">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                        Exportar Case em PDF
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })
+                ) : (
+                    <div className="empty-state">
+                        <h3>Nenhum case disponível</h3>
+                        <p>Conclua e aprove um projeto para que ele apareça aqui.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+};
+
+const TeamView = ({ members, permissions, onRegisterClick, onMemberSelect }) => (
+    <div className="team-view">
+         <div className="view-header">
+            <div>
+                <h1 className="gradient-text">Equipe</h1>
+                <p>Gerencie os membros e suas permissões.</p>
+            </div>
+            <button onClick={onRegisterClick} className="button-primary">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Registrar Membro</span>
+            </button>
+        </div>
+        <div className="team-content">
+            <div className="member-list-container">
+                <h4>Membros</h4>
+                <ul className="member-list">
+                    {members.map(member => (
+                        <li key={member.id} onClick={() => onMemberSelect(member)}>
+                            <div className="member-info">
+                                <img src={member.avatarUrl} alt={member.name} />
+                                <div>
+                                    <strong>{member.name}</strong>
+                                    <span>{member.role}</span>
+                                </div>
+                            </div>
+                            <span className={`status-dot ${member.status?.toLowerCase()}`}></span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+            <div className="permissions-container">
+                <h4>Permissões</h4>
+                 <ul className="permissions-list">
+                    {permissions.map(perm => (
+                        <li key={perm.role}>
+                            <strong>{perm.role}</strong>
+                            <p>{perm.description}</p>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+    </div>
+);
+
+const TeamMemberProfileView = ({ member, clients, onBack, onUpdateProfile, onAvatarUpload }) => {
+    const [name, setName] = useState(member.name);
+    const [email, setEmail] = useState(member.email);
+    const avatarInputRef = useRef(null);
+    
+    const handleSave = () => {
+        onUpdateProfile(member.id, { name, email });
+    };
+
+    return (
+        <section className="team-member-profile-view">
+            <div className="panel-header">
+                <div className="panel-header-left">
+                     <button onClick={onBack} className="back-button" title="Voltar">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     </button>
                 </div>
             </div>
-            <div className="client-info-bar">
-                <div><span>Contato:</span> {client.contactPerson}</div>
-                <div><span>Email:</span> {client.email}</div>
-                <div><span>Telefone:</span> {client.phone}</div>
-            </div>
-            
-            <div className="client-detail-tabs">
-                <button className={`tab-button ${activeDetailTab === 'projects' ? 'active' : ''}`} onClick={() => setActiveDetailTab('projects')}>Projetos</button>
-                <button className={`tab-button ${activeDetailTab === 'assets' ? 'active' : ''}`} onClick={() => setActiveDetailTab('assets')}>Assets</button>
-            </div>
-
-            <div className="client-detail-tab-content">
-                {activeDetailTab === 'projects' && (
-                    <>
-                        <h2 className="client-projects-title">Projetos do Cliente</h2>
-                        <div className="project-grid">
-                            {projects.map(p => (
-                                <ProjectCard 
-                                    key={p.id}
-                                    project={p}
-                                    filesCount={files.filter(f => f.projectId === p.id).length}
-                                    subprojectsCount={p.subprojects?.length || 0}
-                                    onDeleteProject={onDeleteProject}
-                                    onClick={() => onProjectSelect(p)}
-                                    onOpenStatusModal={() => onOpenStatusModal(p)}
-                                />
-                            ))}
-                        </div>
-                    </>
-                )}
-                 {activeDetailTab === 'assets' && (
-                    <ClientAssetsView
-                        assets={clientAssets}
-                        clientId={client.id}
-                        onAssetUpload={onAssetUpload}
-                    />
-                )}
-            </div>
-        </div>
-    );
-};
-
-const ClientAssetsView: React.FC<{ assets: any[]; clientId: string; onAssetUpload: (clientId: string, file: File) => void; }> = ({ assets, clientId, onAssetUpload }) => {
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            Array.from(e.target.files).forEach(file => onAssetUpload(clientId, file));
-        }
-        if (e.target) e.target.value = null; // Reset input
-    };
-
-    return (
-        <div className="client-assets-view">
-            <h2 className="client-projects-title">Assets do Cliente</h2>
-            <FileDropzone onFileUpload={handleFileSelect} />
-            <div className="asset-list">
-                {assets.length === 0 ? (
-                    <p className="empty-state-small" style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>Nenhum asset cadastrado para este cliente.</p>
-                ) : (
-                    assets.map(asset => <AssetListItem key={asset.id} asset={asset} />)
-                )}
-            </div>
-        </div>
-    );
-};
-
-const AssetListItem: React.FC<{ asset: any }> = ({ asset }) => {
-    return (
-        <div className="file-list-item">
-            <div className="file-info">
-                <div className="file-icon">{getFileIcon(asset.type)}</div>
-                <div>
-                    <p className="file-name">{asset.name}</p>
-                    <p className="file-size">{asset.size}</p>
+            <div className="profile-header">
+                <div className="profile-avatar-container">
+                    <img src={member.avatarUrl} alt={member.name} className="profile-avatar" />
+                    <button className="upload-avatar-btn" onClick={() => avatarInputRef.current?.click()}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                    </button>
+                    <input type="file" ref={avatarInputRef} onChange={(e) => onAvatarUpload(member.id, e.target.files[0])} accept="image/*" style={{display: 'none'}} />
                 </div>
+                <h2>{member.name}</h2>
+                <span className="profile-role">{member.role}</span>
             </div>
-            <div className="file-meta">
-                 <div className="file-date-info">
-                    <p className="meta-label">Enviado em:</p>
-                    <p className="meta-value">{new Date(asset.uploadedAt).toLocaleDateString()}</p>
+            <div className="profile-form-container">
+                <div className="form-group">
+                    <label htmlFor="profileName">Nome Completo</label>
+                    <input id="profileName" type="text" value={name} onChange={e => setName(e.target.value)} disabled={member.role === 'Owner'} />
                 </div>
+                 <div className="form-group">
+                    <label htmlFor="profileEmail">Email</label>
+                    <input id="profileEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={member.role === 'Owner'} />
+                </div>
+                {member.role !== 'Owner' && (
+                     <div className="form-actions">
+                        <button onClick={handleSave} className="button-primary">Salvar Alterações</button>
+                    </div>
+                )}
             </div>
-            <div className="file-actions">
-                <a href={asset.url} download={asset.name} className="button-download" style={{textDecoration: 'none'}}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    <span>Download</span>
-                </a>
-            </div>
-        </div>
-    );
+        </section>
+    )
 };
 
-
-const CreateClientModal = ({ onCreateClient, onClose }) => {
-    const [name, setName] = useState('');
-    const [contactPerson, setContactPerson] = useState('');
-    const [email, setEmail] = useState('');
-    const [phone, setPhone] = useState('');
-    const [logoUrl, setLogoUrl] = useState('');
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        onCreateClient({ name, contactPerson, email, phone, logoUrl });
-    };
-
-    return (
-         <div className="modal-overlay" onClick={onClose}>
-            <div className="create-project-modal" onClick={(e) => e.stopPropagation()}>
-                <header className="create-project-modal-header">
-                    <h3 className="gradient-text">Cadastrar Cliente</h3>
-                    <button onClick={onClose} className="modal-close-button">&times;</button>
-                </header>
-                <form onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label htmlFor="clientName">Nome da Empresa</label>
-                        <input type="text" id="clientName" value={name} onChange={e => setName(e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="contactPerson">Nome do Contato</label>
-                        <input type="text" id="contactPerson" value={contactPerson} onChange={e => setContactPerson(e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="clientEmail">Email de Contato</label>
-                        <input type="email" id="clientEmail" value={email} onChange={e => setEmail(e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="clientPhone">Telefone de Contato</label>
-                        <input type="tel" id="clientPhone" value={phone} onChange={e => setPhone(e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="clientLogo">URL do Logo</label>
-                        <input type="text" id="clientLogo" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" />
-                    </div>
-                    <div className="form-actions">
-                        <button type="button" onClick={onClose} className="button-secondary">Cancelar</button>
-                        <button type="submit" className="button-primary" disabled={!name.trim()}>Cadastrar</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-
-const styles = `
-:root {
-  --background: #000000;
-  --surface: #121212;
-  --card-bg: #1E1E1E;
-  --subproject-card-bg: #282828;
-  --primary-start: #34D399;
-  --primary-end: #10B981;
-  --text-primary: #E5E7EB;
-  --text-secondary: #9CA3AF;
-  --border-color: #374151;
-  --danger: #EF4444;
-  --online: #10B981;
-  --offline: #6B7280;
-}
-body {
-  margin: 0;
-  font-family: 'Inter', sans-serif;
-  background-color: var(--surface);
-  color: var(--text-primary);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-#root { height: 100vh; }
-
-.auth-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background-color: var(--background);
-}
-.auth-modal {
-    background-color: #242424;
-    padding: 2.5rem 2rem;
-    border-radius: 12px;
-    width: 100%;
-    max-width: 450px;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-}
-.auth-modal-header {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-.auth-modal-header h3 {
-    margin: 0;
-    font-size: 1.75rem;
-}
-.auth-modal-header p {
-    margin: 8px 0 0;
-    color: var(--text-secondary);
-}
-.auth-switcher-text {
-    text-align: center;
-    margin-top: 1.5rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-}
-.switch-auth-mode-button {
-    background: none;
-    border: none;
-    color: var(--primary-start);
-    font-weight: 500;
-    cursor: pointer;
-    font-size: 0.9rem;
-}
-.switch-auth-mode-button:hover {
-    text-decoration: underline;
-}
-
-.app-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-}
-.app-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 1.5rem;
-    height: 60px;
-    background-color: var(--background);
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-    color: var(--text-primary);
-}
-.logo-section { display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); }
-.logo-section h3 { font-weight: 600; font-size: 1.25rem; }
-.user-section {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-.user-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-}
-.user-name {
-    font-weight: 500;
-    font-size: 0.9rem;
-}
-.logout-button {
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.logout-button:hover {
-    background: #374151;
-    color: var(--text-primary);
-}
-
-
-.main-content {
-    display: flex;
-    flex-grow: 1;
-    overflow: hidden;
-}
-.sidebar {
-    width: 260px;
-    background-color: var(--background);
-    border-right: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    transition: width 0.3s ease-in-out;
-}
-.sidebar-nav {
-    padding: 1rem;
-}
-.sidebar-nav button {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    padding: 0.75rem;
-    border-radius: 8px;
-    border: none;
-    background-color: transparent;
-    color: var(--text-secondary);
-    font-size: 0.95rem;
-    font-family: 'Inter', sans-serif;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-weight: 500;
-    text-align: left;
-}
-.sidebar-nav button:hover {
-    background-color: #1F2937;
-    color: var(--text-primary);
-}
-.sidebar-nav button.active {
-    background: linear-gradient(to right, var(--primary-end), var(--primary-start));
-    color: white;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-}
-.sidebar-nav button svg { flex-shrink: 0; }
-.sidebar-nav button + button { margin-top: 0.5rem; }
-
-.content-panel {
-    flex-grow: 1;
-    overflow-y: auto;
-    background-color: var(--surface);
-}
-
-.view-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-}
-.view-header h1 {
-    font-size: 2.25rem;
-    margin: 0;
-}
-.view-header p {
-    margin: 0.25rem 0 0;
-    color: var(--text-secondary);
-    font-size: 1rem;
-}
-.view-header .button-primary {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-/* Admin Dashboard */
-.admin-dashboard {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background-color: var(--surface);
-}
-.admin-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 1.5rem;
-    height: 60px;
-    background-color: var(--background);
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-}
-.admin-content {
-    padding: 2.5rem;
-    overflow-y: auto;
-}
-.agency-list-container {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1rem;
-    overflow-x: auto;
-}
-.agency-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-.agency-table th, .agency-table td {
-    padding: 1rem 1.25rem;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
-}
-.agency-table th {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.agency-table tbody tr:last-child td {
-    border-bottom: none;
-}
-.agency-table tbody tr:hover {
-    background-color: var(--subproject-card-bg);
-}
-
-/* Projects Feed View */
-.projects-feed-view {
-    padding: 2.5rem;
-}
-.activity-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-.activity-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1rem;
-    background-color: var(--card-bg);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-}
-.activity-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-}
-.activity-content p {
-    margin: 0;
-    line-height: 1.6;
-}
-.activity-content p strong {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-.activity-content p strong:hover {
-    text-decoration: underline;
-    cursor: pointer;
-    color: var(--primary-start);
-}
-.activity-content p em {
-    font-style: normal;
-    background-color: var(--subproject-card-bg);
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
-}
-.activity-timestamp {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin-top: 0.25rem;
-    display: block;
-}
-
-/* Project Grid (reusable) */
-.project-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1.5rem;
-}
-
-/* Project Card */
-.project-card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
-    transition: all 0.2s ease-in-out;
-    cursor: pointer;
-}
-.project-card:hover {
-    transform: translateY(-4px);
-    border-color: var(--primary-end);
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-}
-.project-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-}
-.project-card-header h3 {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-.options-button {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 0;
-}
-.project-card-description {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    flex-grow: 1;
-}
-.project-card-meta {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-.status-tag {
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    border: none;
-    font-family: 'Inter', sans-serif;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-.status-tag:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
-.status-in-progress { background-color: #164E63; color: #A5F3FC; }
-.status-approved { background-color: #065F46; color: #A7F3D0; }
-.status-standby { background-color: #78350F; color: #FEF08A; }
-.status-review { background-color: #86198F; color: #F5D0FE; }
-.status-altering { background-color: #9A3412; color: #FDE68A; }
-.status-rejected { background-color: #991B1B; color: #FECACA; }
-.status-planned { background-color: #374151; color: #D1D5DB; }
-
-.due-date {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-.progress-section { margin-top: 0.5rem; }
-.progress-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.25rem;
-}
-.progress-bar-container {
-    width: 100%;
-    background-color: var(--border-color);
-    border-radius: 9999px;
-    height: 8px;
-    overflow: hidden;
-}
-.progress-bar {
-    height: 100%;
-    background: linear-gradient(to right, var(--primary-end), var(--primary-start));
-    border-radius: 9999px;
-}
-.project-card-footer {
-    border-top: 1px solid var(--border-color);
-    padding-top: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.members-files-info { display: flex; flex-wrap: wrap; gap: 1rem; }
-.info-item {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-.avatar-stack { display: flex; }
-.avatar-stack img {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 2px solid var(--card-bg);
-    margin-left: -10px;
-}
-.avatar-stack img:first-child { margin-left: 0; }
-
-/* Project Detail View */
-.project-detail-view {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    padding: 2.5rem;
-    box-sizing: border-box;
-}
-.project-detail-content {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    flex-grow: 1;
-    gap: 2.5rem;
-    overflow: hidden;
-}
-.key-visual-panel {
-    grid-column: span 1;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-.kv-display-area {
-    width: 100%;
-    flex-grow: 1;
-    background-color: #333333;
-    border: 1px solid rgba(128, 128, 128, 0.2);
-    border-radius: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-}
-.kv-placeholder {
-    width: 100%;
-    height: 100%;
-    background-color: #333333;
-}
-.kv-display-area img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-.kv-upload-button {
-    background: var(--primary-end);
-    flex-shrink: 0;
-    max-width: 300px;
-    align-self: center;
-}
-
-.subprojects-panel {
-    grid-column: span 1;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    min-height: 0;
-}
-.subprojects-header {
-    margin-bottom: 0.5rem;
-    flex-shrink: 0;
-}
-.subprojects-header h5 {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 600;
-}
-.subproject-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    overflow-y: auto;
-    flex-grow: 1;
-    padding-right: 8px; /* For scrollbar */
-}
-.add-subproject-button {
-    width: 100%;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    flex-shrink: 0;
-}
-.panel-header-left {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-.panel-header-right {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-.panel-header h4 { margin: 0; font-size: 1.5rem; font-weight: 600; }
-.back-button {
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: all 0.2s;
-}
-.back-button:hover {
-    background: #374151;
-    color: var(--text-primary);
-}
-.empty-state, .empty-state-small {
-    color: var(--text-secondary);
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 2rem;
-    border: 2px dashed var(--border-color);
-    border-radius: 8px;
-}
-.empty-state-small {
-    padding: 1.5rem;
-    font-size: 0.875rem;
-}
-.delete-button {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 50%;
-    line-height: 0;
-    transition: all 0.2s;
-}
-.delete-button:hover {
-    background-color: var(--danger);
-    color: white;
-}
-
-.button-secondary-small {
-    background-color: var(--card-bg);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-    padding: 0.4rem 0.8rem;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.875rem;
-}
-.button-secondary-small:hover {
-    background-color: #374151;
-    color: var(--text-primary);
-}
-.subproject-item {
-    background-color: var(--subproject-card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-}
-.subproject-info strong {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-.subproject-info p {
-    margin: 0.25rem 0 0;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-
-/* Comments Panel */
-.comments-panel {
-    grid-column: span 1;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    min-height: 0;
-}
-.comments-header h5 {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 600;
-}
-.comment-list {
-    flex-grow: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    padding-right: 8px;
-}
-.comment-item {
-    display: flex;
-    gap: 0.75rem;
-}
-.comment-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-.comment-content p {
-    margin: 0.25rem 0 0;
-    font-size: 0.875rem;
-    color: var(--text-primary);
-    line-height: 1.5;
-    white-space: pre-wrap;
-}
-.comment-author-time {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-.comment-author-time strong {
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-.comment-author-time span {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-}
-.comment-form {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-.comment-form textarea {
-    background-color: var(--subproject-card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0.75rem;
-    color: var(--text-primary);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.875rem;
-    resize: vertical;
-}
-.comment-form textarea:focus {
-    outline: none;
-    border-color: var(--primary-end);
-}
-.button-primary-small {
-    background: linear-gradient(to right, var(--primary-end), var(--primary-start));
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    align-self: flex-end;
-}
-.button-primary-small:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Clients View */
-.clients-view {
-    padding: 2.5rem;
-}
-.client-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1.5rem;
-}
-.client-card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 1rem;
-    cursor: pointer;
-    transition: all 0.2s ease-in-out;
-}
-.client-card:hover {
-    transform: translateY(-4px);
-    border-color: var(--primary-end);
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-}
-.client-card-logo-wrapper {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background-color: var(--surface);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    border: 2px solid var(--border-color);
-}
-.client-card-logo {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.client-card-info h3 {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 600;
-}
-.client-card-info p {
-    margin: 0.25rem 0 0;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-}
-
-/* Client Detail View */
-.client-detail-view {
-    padding: 2.5rem;
-}
-.client-detail-header-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-.client-logo-upload-trigger {
-    position: relative;
-    padding: 0;
-    border: none;
-    background: none;
-    cursor: pointer;
-    border-radius: 8px;
-    overflow: hidden;
-    width: 48px;
-    height: 48px;
-    flex-shrink: 0;
-}
-.client-logo-upload-trigger img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    background-color: #fff;
-    padding: 4px;
-    border-radius: 8px;
-    box-sizing: border-box;
-}
-.logo-upload-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0,0,0,0.6);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
-}
-.client-logo-upload-trigger:hover .logo-upload-overlay {
-    opacity: 1;
-}
-
-.client-info-bar {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem 1.5rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2rem;
-    margin-bottom: 1.5rem;
-    font-size: 0.9rem;
-}
-.client-info-bar div span {
-    color: var(--text-secondary);
-    margin-right: 0.5rem;
-}
-.client-detail-tabs {
-    display: flex;
-    gap: 0.5rem;
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: 2.5rem;
-}
-.tab-button {
-    padding: 0.75rem 1.25rem;
-    border: none;
-    background: none;
-    color: var(--text-secondary);
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    position: relative;
-    top: 1px; /* Aligns with border */
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-}
-.tab-button:hover {
-    color: var(--text-primary);
-}
-.tab-button.active {
-    color: var(--primary-start);
-    border-bottom-color: var(--primary-start);
-}
-.client-projects-title {
-    margin-bottom: 1.5rem;
-    font-size: 1.5rem;
-}
-
-/* Client Assets View */
-.client-assets-view .asset-list {
-    display: grid;
-    gap: 1rem;
-    margin-top: 2rem;
-}
-
-/* Cases View */
-.cases-view {
-    padding: 2.5rem;
-}
-.cases-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 2rem;
-}
-.case-card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-    transition: all 0.2s ease-in-out;
-}
-.case-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-    border-color: var(--primary-start);
-}
-.case-card-image {
-    width: 100%;
-    aspect-ratio: 16 / 10;
-    background-color: var(--subproject-card-bg);
-}
-.case-card-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.kv-placeholder-case {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-}
-.case-card-content {
-    padding: 1rem 1.25rem;
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-}
-.case-card-info h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-.case-card-info p {
-    margin: 0.25rem 0 0;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-.case-card-actions .button-secondary {
-    padding: 0.5rem 1rem;
-}
-
-/* Files View (Old, now used by Assets) */
-.file-dropzone {
-    border: 2px dashed var(--border-color);
-    border-radius: 12px;
-    padding: 2.5rem;
-    text-align: center;
-    background-color: var(--card-bg);
-    margin-bottom: 2.5rem;
-    cursor: pointer;
-    transition: border-color 0.2s, background-color 0.2s;
-}
-.file-dropzone:hover {
-    border-color: var(--primary-end);
-    background-color: #2a2a2a;
-}
-.dropzone-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-}
-.dropzone-icon {
-    color: var(--primary-end);
-}
-.dropzone-text {
-    font-size: 1rem;
-    color: var(--text-primary);
-    margin: 0;
-}
-.dropzone-subtext {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin: 0;
-}
-.dropzone-supported-files {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-top: 0.75rem;
-}
-
-/* File List Item (for Assets) */
-.file-list-item {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem;
-    display: grid;
-    grid-template-columns: 2fr 1.5fr auto;
-    align-items: center;
-    gap: 1.5rem;
-}
-.file-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    min-width: 0; /* Prevents text overflow issues */
-}
-.file-icon {
-    flex-shrink: 0;
-}
-.file-name {
-    font-weight: 500;
-    color: var(--text-primary);
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.file-size {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin: 0;
-}
-.file-meta {
-    display: flex;
-    gap: 2rem;
-    min-width: 0;
-}
-.meta-label {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin: 0;
-}
-.meta-value {
-    font-size: 0.875rem;
-    color: var(--text-primary);
-    margin: 0;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.file-actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 0.5rem;
-}
-.button-download, .button-open {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background-color: var(--card-bg);
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    color: var(--text-primary);
-}
-.button-download:hover { background-color: #374151; }
-.button-open {
-    padding: 0.5rem;
-    line-height: 0;
-}
-
-/* Team View */
-.team-view {
-    padding: 2.5rem;
-}
-.team-content-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-}
-.team-card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1.5rem;
-}
-.team-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
-}
-.team-card-header h2 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-}
-.team-card-header span {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-.permissions-list, .team-members-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-.team-members-list .team-member-item + .team-member-item {
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-color);
-}
-.team-member-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-radius: 8px;
-    transition: background-color 0.2s;
-    padding: 0.5rem;
-    margin: -0.5rem; /* Counteract padding */
-    cursor: pointer;
-}
-.team-member-item:hover {
-    background-color: var(--subproject-card-bg);
-}
-.member-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-.avatar-wrapper {
-    position: relative;
-    flex-shrink: 0;
-}
-.avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-}
-.status-indicator {
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid var(--card-bg);
-}
-.status-indicator.online { background-color: var(--online); }
-.status-indicator.offline { background-color: var(--offline); }
-
-.member-details { display: flex; flex-direction: column; gap: 0.25rem; }
-.member-name-role { display: flex; align-items: center; gap: 0.5rem; }
-.member-name { font-weight: 600; }
-.role-tag {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-.member-email-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    color: var(--text-secondary);
-}
-.member-email { font-size: 0.875rem; }
-
-.member-actions { display: flex; align-items: center; gap: 1rem; }
-.status-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-.status-badge.status-online { background-color: #065F46; color: #A7F3D0; }
-.status-badge.status-offline { background-color: #374151; color: #D1D5DB; }
-
-.permission-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-}
-.permission-icon {
-    flex-shrink: 0;
-    margin-top: 2px;
-}
-.permission-details h3 {
-    margin: 0 0 0.25rem;
-    font-size: 1rem;
-    font-weight: 600;
-}
-.permission-details p {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-
-
-/* Team Member Profile View */
-.team-member-profile-view {
-    padding: 2.5rem;
-}
-.profile-content {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-}
-.profile-header-card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 2rem;
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-}
-.profile-avatar-container {
-    position: relative;
-    flex-shrink: 0;
-}
-.profile-avatar {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    border: 3px solid var(--primary-end);
-}
-.avatar-upload-button {
-    position: absolute;
-    bottom: 5px;
-    right: 5px;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background-color: var(--subproject-card-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-.avatar-upload-button:hover {
-    background-color: var(--border-color);
-}
-.profile-info {
-    display: flex;
-    flex-direction: column;
-}
-.profile-name, .profile-role {
-    cursor: pointer;
-    padding: 0.25rem 0.5rem;
-    margin: 0 -0.5rem;
-    border-radius: 6px;
-    transition: background-color 0.2s;
-}
-.profile-name:hover, .profile-role:hover {
-    background-color: var(--subproject-card-bg);
-}
-.profile-name {
-    font-size: 1.75rem;
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-}
-.profile-role {
-    font-size: 1rem;
-    color: var(--text-secondary);
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-}
-.profile-name-input, .profile-role-input {
-    background-color: var(--subproject-card-bg);
-    border: 1px solid var(--primary-end);
-    border-radius: 6px;
-    color: var(--text-primary);
-    font-family: 'Inter', sans-serif;
-    padding: 0.25rem 0.5rem;
-    outline: none;
-}
-.profile-name-input {
-    font-size: 1.75rem;
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-}
-.profile-role-input {
-    font-size: 1rem;
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-}
-
-.profile-clients-card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1.5rem;
-}
-.client-assignment-section {
-    display: grid;
-    grid-template-columns: 1fr 1px 1fr;
-    gap: 2rem;
-    padding-top: 1.5rem;
-}
-.client-assignment-section > div:nth-child(2) {
-    background-color: var(--border-color); /* Separator */
-}
-.assigned-clients-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-.assigned-client-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem;
-    background-color: var(--subproject-card-bg);
-    border-radius: 6px;
-}
-.assigned-client-logo {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    object-fit: contain;
-    background-color: white;
-}
-.available-clients-list h3 {
-    margin: 0 0 1rem;
-    font-size: 1rem;
-    font-weight: 600;
-}
-.client-checkbox-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-}
-.client-checkbox-item input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--primary-end);
-    cursor: pointer;
-}
-.client-checkbox-item label {
-    cursor: pointer;
-    color: var(--text-primary);
-}
-
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-.modal-content {
-  background-color: var(--card-bg);
-  padding: 2rem;
-  border-radius: 12px;
-  max-width: 80vw;
-  max-height: 80vh;
-  position: relative;
-  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
-  color: var(--text-primary);
-}
-.modal-content img {
-  max-width: 100%;
-  max-height: 70vh;
-  display: block;
-  border-radius: 8px;
-}
-.modal-close-button {
-  position: absolute;
-  top: 10px;
-  right: 15px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  line-height: 1;
-}
-.modal-close-button:hover {
-    color: var(--text-primary);
-}
-.non-image-preview {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-}
-.non-image-preview svg { margin-bottom: 1rem; }
-
-/* Create Project Modal Styles */
-.create-project-modal {
-    background-color: #242424;
-    padding: 2rem;
-    border-radius: 12px;
-    width: 100%;
-    max-width: 450px;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-}
-.create-project-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1.5rem;
-}
-.create-project-modal-header h3 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-.gradient-text {
-    background: -webkit-linear-gradient(left, var(--primary-start), var(--primary-end));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-.form-group { margin-bottom: 1.25rem; }
-.form-group label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-}
-.form-group input,
-.form-group textarea,
-.form-group select {
-    width: 100%;
-    background-color: #374151;
-    border: 1px solid #6B7280;
-    border-radius: 6px;
-    padding: 0.75rem;
-    color: var(--text-primary);
-    font-size: 1rem;
-    font-family: 'Inter', sans-serif;
-    box-sizing: border-box;
-}
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-    outline: none;
-    border-color: var(--primary-end);
-    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.3);
-}
-.form-group input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1);
-    cursor: pointer;
-}
-.status-radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-.radio-option {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-.radio-option:hover {
-    background-color: var(--subproject-card-bg);
-}
-.radio-option input[type="radio"] {
-    accent-color: var(--primary-end);
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
-.radio-option label {
-    margin: 0;
-    font-weight: 400;
-    color: var(--text-primary);
-    cursor: pointer;
-}
-.form-actions {
-    margin-top: 2rem;
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-}
-.button-secondary {
-    background-color: #4B5563;
-    color: var(--text-primary);
-    border: 1px solid #6B7280;
-    padding: 0.6rem 1.2rem;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-.button-secondary:hover { background-color: #6B7280; }
-.button-primary {
-    background: linear-gradient(to right, var(--primary-end), var(--primary-start));
-    color: white;
-    border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.button-primary:hover { box-shadow: 0 0 15px rgba(52, 211, 153, 0.5); }
-.button-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    box-shadow: none;
-}
-
-/* --- Responsive Styles --- */
-.hamburger-menu {
-    display: none;
-    background: none;
-    border: none;
-    color: var(--text-primary);
-    cursor: pointer;
-    padding: 0.5rem;
-    margin-left: -0.5rem;
-}
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-.sidebar-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.6);
-    z-index: 1999;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
-}
-.sidebar-overlay.visible {
-    opacity: 1;
-    visibility: visible;
-}
-
-@media (max-width: 1200px) {
-    .project-detail-content {
-        grid-template-columns: 1fr 1fr;
+const Style = () => {
+    const css = `
+    :root {
+      --bg-primary: #121212;
+      --bg-secondary: #1E1E1E;
+      --bg-tertiary: #2A2A2A;
+      --bg-hover: #333333;
+      --border-color: #383838;
+      --text-primary: #EAEAEA;
+      --text-secondary: #A0A0A0;
+      --primary-start: #FF6B00;
+      --primary-end: #D43F00;
+      --gradient-text: linear-gradient(90deg, var(--primary-start), var(--primary-end));
+      --status-in-progress: #3B82F6;
+      --status-approved: #10B981;
+      --status-standby: #A855F7;
+      --status-review: #F59E0B;
+      --status-altering: #F97316;
+      --status-rejected: #EF4444;
+      --font-family: 'Inter', sans-serif;
     }
-    .key-visual-panel, .subprojects-panel {
-        grid-column: span 1;
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
     }
-    .comments-panel {
-        grid-column: 1 / -1;
-    }
-    .team-content-grid {
-        grid-template-columns: 1fr;
-    }
-}
 
-@media (max-width: 992px) { /* Tablet Portrait */
-    .project-detail-content {
-        grid-template-columns: 1fr;
+    html, body, #root {
+        height: 100%;
     }
-    .key-visual-panel, .subprojects-panel, .comments-panel {
-        grid-column: 1 / -1;
+
+    body {
+        font-family: var(--font-family);
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overflow: hidden;
     }
-    .client-assignment-section {
-        grid-template-columns: 1fr;
-        gap: 2rem;
+
+    button, input, select, textarea {
+        font-family: var(--font-family);
+        background-color: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.6rem 0.8rem;
+        font-size: 0.9rem;
     }
-    .client-assignment-section > div:nth-child(2) {
-        display: none;
+
+    textarea {
+      resize: vertical;
     }
-    .profile-header-card {
-        flex-direction: column;
-        text-align: center;
-        gap: 1rem;
+
+    input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: var(--primary-end);
+        box-shadow: 0 0 0 2px rgba(212, 63, 0, 0.3);
     }
-    .client-info-bar {
-        flex-direction: column;
+    
+    button {
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         gap: 0.5rem;
-        align-items: flex-start;
+        transition: background-color 0.2s ease, transform 0.1s ease;
     }
-    .team-member-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
-    .team-member-item .member-actions {
-        width: 100%;
-        justify-content: space-between;
-    }
-}
 
-@media (max-width: 768px) { /* Mobile */
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .button-primary {
+        background: var(--gradient-text);
+        border: none;
+        color: white;
+        font-weight: 600;
+    }
+    .button-primary:hover { background-color: var(--primary-end); }
+
+    .button-secondary {
+        background-color: var(--bg-tertiary);
+    }
+    .button-secondary:hover { background-color: var(--bg-hover); }
+    
+    .button-primary-small {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.8rem;
+    }
+    
+    .button-secondary-small {
+        background-color: var(--bg-tertiary);
+        font-size: 0.8rem;
+        padding: 0.4rem 0.8rem;
+    }
+     .button-secondary-small:hover { background-color: var(--bg-hover); }
+
+    .gradient-text {
+        background: var(--gradient-text);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-fill-color: transparent;
+    }
+
+    /* --- Auth Screen --- */
+    .auth-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        background-color: #0A0A0A;
+    }
+    .auth-modal {
+        background-color: var(--bg-secondary);
+        padding: 2.5rem 3rem;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        width: 100%;
+        max-width: 450px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    .auth-modal-header { margin-bottom: 2rem; }
+    .auth-modal-header h3 { font-size: 1.8rem; margin-bottom: 0.25rem; }
+    .auth-modal-header p { color: var(--text-secondary); }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 500; }
+    .form-group input { width: 100%; }
+    .form-actions { display: flex; justify-content: flex-end; }
+    .auth-switcher-text {
+        text-align: center;
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+    .switch-auth-mode-button {
+        background: none;
+        border: none;
+        color: var(--primary-start);
+        font-weight: 600;
+        padding: 0;
+        margin-left: 0.25rem;
+    }
+    .switch-auth-mode-button:hover { text-decoration: underline; }
+
+    /* --- App Layout --- */
+    .app-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    .app-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+    }
+    .header-left, .logo-section, .user-section { display: flex; align-items: center; gap: 1rem; }
+    .logo-section h3 { font-size: 1.2rem; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; }
+    .user-name { font-weight: 500; }
+    .logout-button { background: none; border: none; padding: 0.25rem; }
+    .logout-button:hover { color: var(--primary-start); }
+    .hamburger-menu { background: none; border: none; display: none; }
+    
+    .main-content {
+        display: flex;
+        flex-grow: 1;
+        overflow: hidden;
+    }
     .sidebar {
+        width: 220px;
+        background-color: var(--bg-primary);
+        border-right: 1px solid var(--border-color);
+        padding: 1rem;
+        flex-shrink: 0;
+        transition: transform 0.3s ease;
+    }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 0.5rem; }
+    .sidebar-nav button {
+        background: none;
+        border: none;
+        text-align: left;
+        padding: 0.75rem 1rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        border-radius: 8px;
+        color: var(--text-secondary);
+    }
+    .sidebar-nav button.active {
+        background-color: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+    .sidebar-nav button:hover:not(.active) { background-color: var(--bg-hover); color: var(--text-primary); }
+
+    .content-panel {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding: 2rem;
+    }
+    
+    .view-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 2.5rem;
+    }
+    .view-header h1 { font-size: 2rem; margin-bottom: 0.25rem; }
+    .view-header p { color: var(--text-secondary); }
+
+    /* --- Project/Client Cards --- */
+    .projects-grid, .clients-grid, .cases-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+    }
+    .project-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .project-card:hover {
+      border-color: var(--primary-end);
+      transform: translateY(-4px);
+    }
+    .project-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+    .project-card-header h3 { font-size: 1.1rem; }
+    .options-button { background: none; border: none; padding: 0.25rem; color: var(--text-secondary); }
+    .options-button:hover { color: var(--text-primary); }
+    .delete-project-button:hover { color: var(--status-rejected); }
+    .project-card-description { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem; }
+    .project-card-meta { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.25rem; }
+    .status-tag { border: none; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .due-date { display: flex; align-items: center; gap: 0.4rem; color: var(--text-secondary); font-size: 0.8rem; }
+    .progress-section { margin-bottom: 1.25rem; }
+    .progress-labels { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+    .progress-bar-container { width: 100%; background-color: var(--bg-tertiary); height: 6px; border-radius: 3px; overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--gradient-text); border-radius: 3px; }
+    .project-card-footer { display: flex; justify-content: space-between; align-items: center; }
+    .members-files-info { display: flex; gap: 1rem; align-items: center; }
+    .info-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-secondary); }
+    .avatar-stack { display: flex; }
+    .avatar-stack img { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--bg-secondary); margin-left: -10px; }
+    
+    .status-in-progress { background-color: var(--status-in-progress); color: white; }
+    .status-approved { background-color: var(--status-approved); color: white; }
+    .status-standby { background-color: var(--status-standby); color: white; }
+    .status-review { background-color: var(--status-review); color: black; }
+    .status-altering { background-color: var(--status-altering); color: white; }
+    .status-rejected { background-color: var(--status-rejected); color: white; }
+    
+    /* --- Modals --- */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+    .modal-content {
+        background-color: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .modal-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+     .modal-header h3 { font-size: 1.25rem; }
+    .modal-close-button {
+      background: none; border: none; font-size: 1.5rem; line-height: 1; color: var(--text-secondary);
+    }
+    .modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+    }
+    .modal-footer {
+      padding: 1.5rem;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+    .status-modal .modal-header { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+    .status-modal .modal-header p { color: var(--text-secondary); }
+    .status-modal .modal-close-button { position: absolute; top: 1.5rem; right: 1.5rem; }
+    .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .button-status { width: 100%; padding: 0.8rem; font-weight: 500; }
+    .button-status.active { border-color: var(--primary-end); }
+
+    /* --- Project Detail --- */
+    .project-detail-view .panel-header, .client-detail-view .panel-header {
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-header-left { display: flex; align-items: center; gap: 1rem; }
+    .back-button { background: none; border: none; padding: 0.25rem; color: var(--text-secondary); }
+    .back-button:hover { color: var(--text-primary); }
+    .project-detail-content {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        grid-template-areas: "kv subprojects" "kv comments";
+        gap: 1.5rem;
+        align-items: flex-start;
+    }
+    .key-visual-panel { grid-area: kv; }
+    .subprojects-panel { grid-area: subprojects; }
+    .comments-panel { grid-area: comments; }
+    .kv-display-area {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        overflow: hidden;
+    }
+    .kv-display-area img { width: 100%; height: 100%; object-fit: cover; }
+    .kv-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: var(--text-secondary);
+    }
+    .kv-placeholder span { margin-top: 1rem; font-size: 0.9rem; }
+    .kv-upload-button { width: 100%; }
+    
+    .subprojects-panel, .comments-panel {
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+    .subprojects-header, .comments-header { margin-bottom: 1rem; }
+    .subproject-list { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+    .subproject-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+    .subproject-info p { font-size: 0.9rem; color: var(--text-secondary); }
+    .delete-button { background: none; border: none; padding: 0.25rem; color: var(--text-secondary); }
+    .delete-button:hover { color: var(--status-rejected); }
+    .add-subproject-button { width: 100%; }
+
+    .comment-list { display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 1.5rem; max-height: 250px; overflow-y: auto; }
+    .comment-item { display: flex; gap: 0.75rem; }
+    .comment-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+    .comment-author-time { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.25rem; }
+    .comment-author-time span { font-size: 0.75rem; color: var(--text-secondary); }
+    .comment-content p { font-size: 0.9rem; }
+    .comment-form { display: flex; gap: 0.5rem; }
+    .comment-form textarea { flex-grow: 1; }
+    
+    .empty-state-small { font-size: 0.9rem; color: var(--text-secondary); text-align: center; padding: 1rem 0; }
+
+    /* Feed View */
+    .activity-list { max-width: 800px; margin: 0 auto; }
+    .activity-item { display: flex; gap: 1rem; padding: 1.25rem; border-bottom: 1px solid var(--border-color); }
+    .activity-avatar { width: 40px; height: 40px; border-radius: 50%; }
+    .activity-content p { color: var(--text-secondary); }
+    .activity-content p strong { color: var(--text-primary); }
+    .activity-content p strong[onclick] { cursor: pointer; }
+    .activity-content p strong[onclick]:hover { text-decoration: underline; color: var(--primary-start); }
+    .activity-timestamp { font-size: 0.8rem; color: var(--text-secondary); }
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background-color: var(--bg-secondary);
+        border: 1px dashed var(--border-color);
+        border-radius: 12px;
+    }
+    .empty-state h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .empty-state p { color: var(--text-secondary); }
+
+    /* Clients View */
+    .client-card {
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .client-card:hover {
+        border-color: var(--primary-end);
+        transform: translateY(-4px);
+    }
+    .client-logo {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        margin-bottom: 1rem;
+        object-fit: contain;
+        background-color: white;
+    }
+    .client-card h4 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+    .client-card p { color: var(--text-secondary); font-size: 0.9rem; }
+
+    /* Client Detail View */
+    .client-detail-header {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    .client-logo-container { position: relative; }
+    .client-detail-logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background-color: white;
+      object-fit: contain;
+      border: 3px solid var(--bg-tertiary);
+    }
+    .upload-logo-btn {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      padding: 0;
+    }
+    .upload-logo-btn:hover { background-color: var(--bg-hover); }
+    .client-contact-info { display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary); }
+    .client-contact-info a { color: var(--text-secondary); text-decoration: none; }
+    .client-contact-info a:hover { color: var(--primary-start); }
+    
+    .client-detail-content {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 2rem;
+        align-items: flex-start;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+    .asset-list { display: flex; flex-direction: column; gap: 1rem; }
+    .asset-item { display: flex; align-items: center; gap: 0.75rem; }
+    .asset-item svg { flex-shrink: 0; }
+    .asset-info { overflow: hidden; }
+    .asset-info a {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .asset-info a:hover { text-decoration: underline; color: var(--primary-start); }
+    .asset-info span { font-size: 0.8rem; color: var(--text-secondary); }
+
+    /* Cases View */
+    .case-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .case-card-kv {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+    }
+    .case-card-content { padding: 1.5rem; }
+    .case-card-content h4 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+    .case-card-content p { color: var(--text-secondary); margin-bottom: 1rem; }
+    
+    /* Team View */
+    .team-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: flex-start;
+    }
+    .member-list-container h4, .permissions-container h4 {
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .member-list { list-style: none; }
+    .member-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .member-list li:hover { background-color: var(--bg-secondary); }
+    .member-info { display: flex; align-items: center; gap: 0.75rem; }
+    .member-info img { width: 40px; height: 40px; border-radius: 50%; }
+    .member-info div { display: flex; flex-direction: column; }
+    .member-info span { font-size: 0.85rem; color: var(--text-secondary); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.online { background-color: var(--status-approved); }
+    .status-dot.offline { background-color: var(--text-secondary); }
+    .permissions-list { list-style: none; display: flex; flex-direction: column; gap: 1rem; }
+    .permissions-list p { font-size: 0.9rem; color: var(--text-secondary); }
+
+    /* Member Profile */
+    .team-member-profile-view { max-width: 600px; margin: 0 auto; }
+    .profile-header { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-bottom: 2rem; }
+    .profile-avatar-container { position: relative; margin-bottom: 0.5rem; }
+    .profile-avatar { width: 120px; height: 120px; border-radius: 50%; border: 3px solid var(--bg-tertiary); }
+    .upload-avatar-btn {
+      position: absolute;
+      bottom: 5px;
+      right: 5px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      padding: 0;
+    }
+    .profile-role { color: var(--text-secondary); }
+    .profile-form-container .form-actions { justify-content: flex-start; margin-top: 1.5rem; }
+    
+    /* Admin Dashboard */
+    .admin-dashboard { height: 100vh; display: flex; flex-direction: column; }
+    .admin-header {
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .admin-content { padding: 2rem; flex-grow: 1; overflow-y: auto; }
+    .agency-list-container {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+    }
+    .agency-table { width: 100%; border-collapse: collapse; }
+    .agency-table th, .agency-table td {
+      padding: 1rem 1.5rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .agency-table th { font-size: 0.8rem; text-transform: uppercase; color: var(--text-secondary); }
+    .agency-table tbody tr:last-child td { border-bottom: none; }
+    .delete-agency-button {
+      background: none; border: none; padding: 0.25rem; color: var(--text-secondary);
+    }
+    .delete-agency-button:hover { color: var(--status-rejected); }
+
+    /* Responsive */
+    @media (max-width: 992px) {
+      .project-detail-content {
+        grid-template-columns: 1fr;
+        grid-template-areas: "kv" "subprojects" "comments";
+      }
+      .team-content, .client-detail-content {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
         position: fixed;
         left: 0;
         top: 0;
-        height: 100vh;
-        z-index: 2000;
+        bottom: 0;
+        height: 100%;
+        z-index: 1001;
         transform: translateX(-100%);
-        transition: transform 0.3s ease-in-out;
-        box-shadow: 5px 0 15px rgba(0,0,0,0.2);
-    }
-    .sidebar.open {
-        transform: translateX(0);
-    }
-    
-    .hamburger-menu {
-        display: block;
-    }
-    .logo-section h3, .user-section .user-name {
-        display: none;
-    }
-    .app-header, .admin-header {
-        padding: 0 1rem;
-    }
-    
-    .projects-feed-view, .cases-view, .clients-view, .team-view, .project-detail-view, .client-detail-view, .team-member-profile-view, .admin-content {
-        padding: 1.5rem;
-    }
-    .view-header {
+        padding-top: 5rem;
+      }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0,0,0,0.5);
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      }
+      .sidebar-overlay.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .hamburger-menu { display: block; }
+      .user-name { display: none; }
+      .content-panel { padding: 1.5rem; }
+      .view-header {
         flex-direction: column;
+        gap: 1rem;
         align-items: flex-start;
-        gap: 1rem;
-    }
-    .view-header h1 {
-        font-size: 1.75rem;
-    }
-    .view-header .button-primary {
-        width: 100%;
-        justify-content: center;
-    }
-    .panel-header {
-        gap: 1rem;
-    }
-    .panel-header h4 {
-        font-size: 1.25rem;
-    }
-    
-    .project-grid, .client-grid, .cases-grid {
+      }
+      .projects-grid, .clients-grid, .cases-grid {
         grid-template-columns: 1fr;
+      }
     }
-    
-    .file-list-item {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-    .file-list-item .file-actions {
-        justify-content: flex-start;
-    }
-    .file-list-item .file-meta {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
+    `;
 
-    .auth-modal,
-    .create-project-modal {
-        width: calc(100% - 2rem);
-        height: auto;
-        max-height: 90vh;
-        overflow-y: auto;
-        padding: 1.5rem;
-    }
-    .form-actions {
-        flex-direction: column-reverse;
-        width: 100%;
-        gap: 0.75rem;
-    }
-    .form-actions > * {
-        width: 100%;
-        justify-content: center;
-    }
-}
-`;
+    useEffect(() => {
+        const styleElement = document.createElement('style');
+        styleElement.innerHTML = css;
+        document.head.appendChild(styleElement);
+        return () => {
+            document.head.removeChild(styleElement);
+        };
+    }, []);
 
-const styleSheet = document.createElement("style");
-styleSheet.innerText = styles;
-document.head.appendChild(styleSheet);
+    return null;
+};
 
-const root = createRoot(document.getElementById('root'));
+const container = document.getElementById('root');
+const root = createRoot(container);
 root.render(<App />);
