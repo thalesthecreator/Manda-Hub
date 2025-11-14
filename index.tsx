@@ -156,6 +156,12 @@ const App = () => {
     const [isRegisterMemberModalOpen, setRegisterMemberModalOpen] = useState(false);
     const [isStatusModalOpen, setStatusModalOpen] = useState(false);
     const [projectToUpdateStatus, setProjectToUpdateStatus] = useState(null);
+    const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+    const handleTabChange = (tab) => {
+        setActiveTab(tab);
+        setSidebarOpen(false);
+    };
 
     const handleRegister = ({ agencyName, ownerName, ownerEmail, password }) => {
         if (users.find(u => u.email === ownerEmail)) {
@@ -521,9 +527,10 @@ const App = () => {
     
     return (
       <div className="app-container">
-        <Header agencyName={agencyName} currentUser={currentUser} onLogout={handleLogout} />
+        <Header agencyName={agencyName} currentUser={currentUser} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
         <main className="main-content">
-          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+          <div className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)}></div>
+          <Sidebar activeTab={activeTab} onTabChange={handleTabChange} isOpen={isSidebarOpen} />
           <div className="content-panel">
             {activeTab === 'projects' && (
               <ProjectsFeedView 
@@ -704,14 +711,19 @@ const AuthScreen = ({ onLogin, onRegister, usersExist }) => {
 };
 
 
-const Header = ({ agencyName, currentUser, onLogout }) => (
+const Header = ({ agencyName, currentUser, onLogout, onToggleSidebar }) => (
     <header className="app-header">
-      <div className="logo-section">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3" y="3" width="18" height="18" rx="4" ry="4" fill="var(--primary-end)"/>
-          <path d="M7 15.5V9.5C7 8.11929 8.11929 7 9.5 7C10.8807 7 12 8.11929 12 9.5V11.5C12 10.1193 13.1193 9 14.5 9C15.8807 9 17 10.1193 17 11.5V15.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <h3>{agencyName}</h3>
+      <div className="header-left">
+        <button className="hamburger-menu" onClick={onToggleSidebar} aria-label="Abrir menu">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div className="logo-section">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="18" height="18" rx="4" ry="4" fill="var(--primary-end)"/>
+            <path d="M7 15.5V9.5C7 8.11929 8.11929 7 9.5 7C10.8807 7 12 8.11929 12 9.5V11.5C12 10.1193 13.1193 9 14.5 9C15.8807 9 17 10.1193 17 11.5V15.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <h3>{agencyName}</h3>
+        </div>
       </div>
       <div className="user-section">
         <img src={currentUser.avatarUrl} alt={currentUser.name} className="user-avatar" />
@@ -723,7 +735,7 @@ const Header = ({ agencyName, currentUser, onLogout }) => (
     </header>
 );
 
-const Sidebar = ({ activeTab, onTabChange }) => {
+const Sidebar = ({ activeTab, onTabChange, isOpen }) => {
     const navItems = [
         { id: 'projects', label: 'Feed', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"></path></svg> },
         { id: 'cases', label: 'Cases', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> },
@@ -732,7 +744,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
     ];
 
     return (
-        <aside className="sidebar">
+        <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
             <nav className="sidebar-nav">
                 {navItems.map(item => (
                     <button
@@ -2052,6 +2064,7 @@ body {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+    transition: width 0.3s ease-in-out;
 }
 .sidebar-nav {
     padding: 1rem;
@@ -3357,6 +3370,170 @@ body {
     opacity: 0.5;
     cursor: not-allowed;
     box-shadow: none;
+}
+
+/* --- Responsive Styles --- */
+.hamburger-menu {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.5rem;
+    margin-left: -0.5rem;
+}
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    z-index: 1999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+}
+.sidebar-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+@media (max-width: 1200px) {
+    .project-detail-content {
+        grid-template-columns: 1fr 1fr;
+    }
+    .key-visual-panel, .subprojects-panel {
+        grid-column: span 1;
+    }
+    .comments-panel {
+        grid-column: 1 / -1;
+    }
+    .team-content-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 992px) { /* Tablet Portrait */
+    .project-detail-content {
+        grid-template-columns: 1fr;
+    }
+    .key-visual-panel, .subprojects-panel, .comments-panel {
+        grid-column: 1 / -1;
+    }
+    .client-assignment-section {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    .client-assignment-section > div:nth-child(2) {
+        display: none;
+    }
+    .profile-header-card {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+    .client-info-bar {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: flex-start;
+    }
+    .team-member-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    .team-member-item .member-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+@media (max-width: 768px) { /* Mobile */
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        z-index: 2000;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+        box-shadow: 5px 0 15px rgba(0,0,0,0.2);
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .hamburger-menu {
+        display: block;
+    }
+    .logo-section h3, .user-section .user-name {
+        display: none;
+    }
+    .app-header {
+        padding: 0 1rem;
+    }
+    
+    .projects-feed-view, .cases-view, .clients-view, .team-view, .project-detail-view, .client-detail-view, .team-member-profile-view {
+        padding: 1.5rem;
+    }
+    .view-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    .view-header h1 {
+        font-size: 1.75rem;
+    }
+    .view-header .button-primary {
+        width: 100%;
+        justify-content: center;
+    }
+    .panel-header {
+        gap: 1rem;
+    }
+    .panel-header h4 {
+        font-size: 1.25rem;
+    }
+    
+    .project-grid, .client-grid, .cases-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .file-list-item {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .file-list-item .file-actions {
+        justify-content: flex-start;
+    }
+    .file-list-item .file-meta {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .auth-modal,
+    .create-project-modal {
+        width: calc(100% - 2rem);
+        height: auto;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 1.5rem;
+    }
+    .form-actions {
+        flex-direction: column-reverse;
+        width: 100%;
+        gap: 0.75rem;
+    }
+    .form-actions > * {
+        width: 100%;
+        justify-content: center;
+    }
 }
 `;
 
