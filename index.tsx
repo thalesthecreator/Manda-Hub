@@ -137,6 +137,7 @@ const useStickyState = (defaultValue, key) => {
 const App = () => {
     const [users, setUsers] = useStickyState([], 'users');
     const [currentUser, setCurrentUser] = useStickyState(null, 'currentUser');
+    const [isAdmin, setIsAdmin] = useStickyState(false, 'isAdmin');
     const [agencyName, setAgencyName] = useStickyState('Manda Hub', 'agencyName');
     
     const [activeTab, setActiveTab] = useState('projects');
@@ -216,8 +217,13 @@ const App = () => {
         }
     };
 
+    const handleAdminLogin = () => {
+        setIsAdmin(true);
+    };
+
     const handleLogout = () => {
         setCurrentUser(null);
+        setIsAdmin(false);
     };
     
     const handleCreateProject = (projectData) => {
@@ -521,8 +527,12 @@ const App = () => {
         }
     }, [activeTab]);
 
+    if (isAdmin) {
+        return <AdminDashboard users={users} onLogout={handleLogout} />;
+    }
+
     if (!currentUser) {
-        return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} usersExist={users.length > 0} />;
+        return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} onAdminLogin={handleAdminLogin} usersExist={users.length > 0} />;
     }
     
     return (
@@ -613,7 +623,61 @@ const App = () => {
     );
 };
 
-const AuthScreen = ({ onLogin, onRegister, usersExist }) => {
+const AdminDashboard = ({ users, onLogout }) => {
+    return (
+        <div className="admin-dashboard">
+            <header className="admin-header">
+                <div className="logo-section">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="3" width="18" height="18" rx="4" ry="4" fill="var(--primary-end)" />
+                        <path d="M7 15.5V9.5C7 8.11929 8.11929 7 9.5 7C10.8807 7 12 8.11929 12 9.5V11.5C12 10.1193 13.1193 9 14.5 9C15.8807 9 17 10.1193 17 11.5V15.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <h3>Painel ADM - Manda Hub</h3>
+                </div>
+                <button onClick={onLogout} className="logout-button" title="Sair">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
+            </header>
+            <main className="admin-content">
+                <div className="view-header">
+                    <div>
+                        <h1 className="gradient-text">Agências Cadastradas</h1>
+                        <p>Visualize e gerencie todas as agências na plataforma.</p>
+                    </div>
+                </div>
+                <div className="agency-list-container">
+                    {users.length > 0 ? (
+                        <table className="agency-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome da Agência</th>
+                                    <th>Nome do Dono</th>
+                                    <th>Email de Login</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {users.map(user => (
+                                    <tr key={user.id}>
+                                        <td>{user.agencyName}</td>
+                                        <td>{user.name}</td>
+                                        <td>{user.email}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div className="empty-state">
+                            <h3>Nenhuma agência cadastrada</h3>
+                            <p>Quando novas agências se registrarem, elas aparecerão aqui.</p>
+                        </div>
+                    )}
+                </div>
+            </main>
+        </div>
+    );
+};
+
+const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
     const [isLoginView, setIsLoginView] = useState(usersExist);
 
     const [loginEmail, setLoginEmail] = useState('');
@@ -626,8 +690,12 @@ const AuthScreen = ({ onLogin, onRegister, usersExist }) => {
 
     const handleLoginSubmit = (e) => {
         e.preventDefault();
-        if (!loginEmail || !loginPassword) return;
-        onLogin({ email: loginEmail, password: loginPassword });
+        if (loginEmail === 'adm@mandahub.com' && loginPassword === 'admin') {
+            onAdminLogin();
+        } else {
+            if (!loginEmail || !loginPassword) return;
+            onLogin({ email: loginEmail, password: loginPassword });
+        }
     };
 
     const handleRegisterSubmit = (e) => {
@@ -2125,6 +2193,57 @@ body {
     gap: 0.5rem;
 }
 
+/* Admin Dashboard */
+.admin-dashboard {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: var(--surface);
+}
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1.5rem;
+    height: 60px;
+    background-color: var(--background);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+.admin-content {
+    padding: 2.5rem;
+    overflow-y: auto;
+}
+.agency-list-container {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem;
+    overflow-x: auto;
+}
+.agency-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.agency-table th, .agency-table td {
+    padding: 1rem 1.25rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+.agency-table th {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.agency-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.agency-table tbody tr:hover {
+    background-color: var(--subproject-card-bg);
+}
+
 /* Projects Feed View */
 .projects-feed-view {
     padding: 2.5rem;
@@ -3475,11 +3594,11 @@ body {
     .logo-section h3, .user-section .user-name {
         display: none;
     }
-    .app-header {
+    .app-header, .admin-header {
         padding: 0 1rem;
     }
     
-    .projects-feed-view, .cases-view, .clients-view, .team-view, .project-detail-view, .client-detail-view, .team-member-profile-view {
+    .projects-feed-view, .cases-view, .clients-view, .team-view, .project-detail-view, .client-detail-view, .team-member-profile-view, .admin-content {
         padding: 1.5rem;
     }
     .view-header {
