@@ -135,7 +135,8 @@ const useStickyState = (defaultValue, key) => {
 };
 
 const App = () => {
-    const [isSetupComplete, setIsSetupComplete] = useStickyState(false, 'agencySetupComplete');
+    const [users, setUsers] = useStickyState([], 'users');
+    const [currentUser, setCurrentUser] = useStickyState(null, 'currentUser');
     const [agencyName, setAgencyName] = useStickyState('Manda Hub', 'agencyName');
     
     const [activeTab, setActiveTab] = useState('projects');
@@ -144,7 +145,6 @@ const App = () => {
     const [clients, setClients] = useStickyState(initialClients, 'clients');
     const [clientAssets, setClientAssets] = useStickyState(initialClientAssets, 'clientAssets');
     const [teamMembers, setTeamMembers] = useStickyState([], 'teamMembers');
-    const [currentUser, setCurrentUser] = useStickyState(null, 'currentUser');
     
     const [selectedProject, setSelectedProject] = useState(null);
     const [selectedClient, setSelectedClient] = useState(null);
@@ -157,11 +157,61 @@ const App = () => {
     const [isStatusModalOpen, setStatusModalOpen] = useState(false);
     const [projectToUpdateStatus, setProjectToUpdateStatus] = useState(null);
 
-    const handleSetupComplete = ({ agencyName, owner }) => {
+    const handleRegister = ({ agencyName, ownerName, ownerEmail, password }) => {
+        if (users.find(u => u.email === ownerEmail)) {
+            alert('Este e-mail já está em uso.');
+            return;
+        }
+
+        const newUser = {
+            id: crypto.randomUUID(),
+            name: ownerName,
+            email: ownerEmail,
+            password: password, // In a real app, this should be hashed.
+            agencyName: agencyName,
+        };
+        setUsers(prev => [...prev, newUser]);
+
+        const owner = {
+            id: newUser.id,
+            name: ownerName,
+            email: ownerEmail,
+            role: 'Owner',
+            avatarUrl: `https://i.pravatar.cc/150?u=${newUser.id}`,
+            status: 'Online',
+            assignedClients: [],
+        };
+
+        // Reset the workspace for the new agency
         setAgencyName(agencyName);
         setTeamMembers([owner]);
+        setClients(initialClients);
+        setProjects(initialProjects);
+        setFiles(initialFiles);
+        setClientAssets(initialClientAssets);
+
+        // Log the new user in
         setCurrentUser(owner);
-        setIsSetupComplete(true);
+    };
+
+    const handleLogin = ({ email, password }) => {
+        const user = users.find(u => u.email === email && u.password === password);
+        if (user) {
+            // In this single-tenant setup, we just log in.
+            // A multi-tenant app would load the agency's specific data here.
+             const memberProfile = teamMembers.find(m => m.id === user.id);
+             if (memberProfile) {
+                setCurrentUser(memberProfile);
+             } else {
+                 alert("Erro de consistência de dados: Perfil de membro não encontrado para o usuário. Por favor, cadastre-se novamente.");
+             }
+        } else {
+            alert('E-mail ou senha inválidos.');
+        }
+    };
+
+    const handleLogout = () => {
+        setCurrentUser(null);
     };
     
     const handleCreateProject = (projectData) => {
@@ -465,13 +515,13 @@ const App = () => {
         }
     }, [activeTab]);
 
-    if (!isSetupComplete) {
-        return <AgencySetup onSetupComplete={handleSetupComplete} />;
+    if (!currentUser) {
+        return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} usersExist={users.length > 0} />;
     }
     
     return (
       <div className="app-container">
-        <Header agencyName={agencyName} />
+        <Header agencyName={agencyName} currentUser={currentUser} onLogout={handleLogout} />
         <main className="main-content">
           <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
           <div className="content-panel">
@@ -556,65 +606,105 @@ const App = () => {
     );
 };
 
-const AgencySetup = ({ onSetupComplete }) => {
+const AuthScreen = ({ onLogin, onRegister, usersExist }) => {
+    const [isLoginView, setIsLoginView] = useState(usersExist);
+
+    const [loginEmail, setLoginEmail] = useState('');
+    const [loginPassword, setLoginPassword] = useState('');
+
     const [agencyName, setAgencyName] = useState('');
     const [ownerName, setOwnerName] = useState('');
     const [ownerEmail, setOwnerEmail] = useState('');
     const [password, setPassword] = useState('');
 
-    const handleSubmit = (e) => {
+    const handleLoginSubmit = (e) => {
         e.preventDefault();
-        if (!agencyName.trim() || !ownerName.trim() || !ownerEmail.trim() || !password.trim()) return;
-        
-        const owner = {
-            id: crypto.randomUUID(),
-            name: ownerName,
-            email: ownerEmail,
-            role: 'Owner',
-            avatarUrl: `https://i.pravatar.cc/150?u=${crypto.randomUUID()}`,
-            status: 'Online',
-            assignedClients: [],
-        };
-
-        onSetupComplete({ agencyName, owner });
+        if (!loginEmail || !loginPassword) return;
+        onLogin({ email: loginEmail, password: loginPassword });
     };
 
+    const handleRegisterSubmit = (e) => {
+        e.preventDefault();
+        if (!agencyName.trim() || !ownerName.trim() || !ownerEmail.trim() || !password.trim()) return;
+        onRegister({ agencyName, ownerName, ownerEmail, password });
+    };
+
+    // FIX: Explicitly type SwitchModeButton as a React Functional Component to define its props, including 'children'.
+    const SwitchModeButton: React.FC<{ onClick: () => void; children: React.ReactNode }> = ({ onClick, children }) => (
+        <button type="button" onClick={onClick} className="switch-auth-mode-button">
+            {children}
+        </button>
+    );
+
     return (
-        <div className="setup-container">
-            <div className="create-project-modal" style={{ maxWidth: '500px' }}>
-                <header className="create-project-modal-header">
-                    <div>
-                        <h3 className="gradient-text">Bem-vindo ao Manda Hub!</h3>
-                        <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Vamos configurar sua agência.</p>
-                    </div>
-                </header>
-                <form onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label htmlFor="agencyName">Nome da Agência/Empresa</label>
-                        <input type="text" id="agencyName" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="ownerName">Seu Nome Completo</label>
-                        <input type="text" id="ownerName" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="ownerEmail">Seu E-mail (será seu login)</label>
-                        <input type="email" id="ownerEmail" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="password">Crie uma Senha</label>
-                        <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                    </div>
-                    <div className="form-actions" style={{justifyContent: 'center', marginTop: '2.5rem'}}>
-                        <button type="submit" className="button-primary" style={{width: '100%', padding: '0.8rem'}}>Concluir Configuração</button>
-                    </div>
-                </form>
+        <div className="auth-container">
+            <div className="auth-modal">
+                {isLoginView ? (
+                    <>
+                        <header className="auth-modal-header">
+                            <div>
+                                <h3 className="gradient-text">Bem-vindo de volta!</h3>
+                                <p>Faça login para acessar seu hub.</p>
+                            </div>
+                        </header>
+                        <form onSubmit={handleLoginSubmit}>
+                            <div className="form-group">
+                                <label htmlFor="loginEmail">E-mail</label>
+                                <input type="email" id="loginEmail" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="loginPassword">Senha</label>
+                                <input type="password" id="loginPassword" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
+                            </div>
+                            <div className="form-actions" style={{justifyContent: 'center', marginTop: '2.5rem'}}>
+                                <button type="submit" className="button-primary" style={{width: '100%', padding: '0.8rem'}}>Entrar</button>
+                            </div>
+                        </form>
+                        <p className="auth-switcher-text">
+                            Não tem uma conta? <SwitchModeButton onClick={() => setIsLoginView(false)}>Cadastre-se</SwitchModeButton>
+                        </p>
+                    </>
+                ) : (
+                    <>
+                        <header className="auth-modal-header">
+                            <div>
+                                <h3 className="gradient-text">Bem-vindo ao Manda Hub!</h3>
+                                <p>Vamos configurar sua agência.</p>
+                            </div>
+                        </header>
+                        <form onSubmit={handleRegisterSubmit}>
+                            <div className="form-group">
+                                <label htmlFor="agencyName">Nome da Agência/Empresa</label>
+                                <input type="text" id="agencyName" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="ownerName">Seu Nome Completo</label>
+                                <input type="text" id="ownerName" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="ownerEmail">Seu E-mail (será seu login)</label>
+                                <input type="email" id="ownerEmail" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="password">Crie uma Senha</label>
+                                <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                            </div>
+                            <div className="form-actions" style={{justifyContent: 'center', marginTop: '2.5rem'}}>
+                                <button type="submit" className="button-primary" style={{width: '100%', padding: '0.8rem'}}>Concluir Configuração</button>
+                            </div>
+                        </form>
+                         <p className="auth-switcher-text">
+                            Já tem uma conta? <SwitchModeButton onClick={() => setIsLoginView(true)}>Faça login</SwitchModeButton>
+                        </p>
+                    </>
+                )}
             </div>
         </div>
     );
 };
 
-const Header = ({ agencyName }) => (
+
+const Header = ({ agencyName, currentUser, onLogout }) => (
     <header className="app-header">
       <div className="logo-section">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -622,6 +712,13 @@ const Header = ({ agencyName }) => (
           <path d="M7 15.5V9.5C7 8.11929 8.11929 7 9.5 7C10.8807 7 12 8.11929 12 9.5V11.5C12 10.1193 13.1193 9 14.5 9C15.8807 9 17 10.1193 17 11.5V15.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
         <h3>{agencyName}</h3>
+      </div>
+      <div className="user-section">
+        <img src={currentUser.avatarUrl} alt={currentUser.name} className="user-avatar" />
+        <span className="user-name">{currentUser.name}</span>
+        <button onClick={onLogout} className="logout-button" title="Sair">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
       </div>
     </header>
 );
@@ -1845,12 +1942,51 @@ body {
 }
 #root { height: 100vh; }
 
-.setup-container {
+.auth-container {
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
     background-color: var(--background);
+}
+.auth-modal {
+    background-color: #242424;
+    padding: 2.5rem 2rem;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 450px;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+.auth-modal-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+.auth-modal-header h3 {
+    margin: 0;
+    font-size: 1.75rem;
+}
+.auth-modal-header p {
+    margin: 8px 0 0;
+    color: var(--text-secondary);
+}
+.auth-switcher-text {
+    text-align: center;
+    margin-top: 1.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+.switch-auth-mode-button {
+    background: none;
+    border: none;
+    color: var(--primary-start);
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.switch-auth-mode-button:hover {
+    text-decoration: underline;
 }
 
 .app-container {
@@ -1860,6 +1996,7 @@ body {
 }
 .app-header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
     padding: 0 1.5rem;
     height: 60px;
@@ -1870,6 +2007,38 @@ body {
 }
 .logo-section { display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); }
 .logo-section h3 { font-weight: 600; font-size: 1.25rem; }
+.user-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+.user-name {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+.logout-button {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.logout-button:hover {
+    background: #374151;
+    color: var(--text-primary);
+}
+
 
 .main-content {
     display: flex;
