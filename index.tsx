@@ -836,6 +836,13 @@ const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
         }
     };
     
+    const handleClearData = () => {
+        if (window.confirm("Tem certeza que deseja limpar TODOS os dados do aplicativo? Esta ação é irreversível e removerá todas as agências, projetos e usuários.")) {
+            localStorage.clear();
+            window.location.reload();
+        }
+    };
+
     useEffect(() => {
         setIsLogin(usersExist);
     }, [usersExist]);
@@ -877,6 +884,7 @@ const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
                 </div>
                 <div className="auth-footer">
                     <button onClick={onAdminLogin}>Acesso Administrativo</button>
+                    <button onClick={handleClearData}>Limpar Dados de Teste</button>
                 </div>
             </div>
         </>
@@ -1676,7 +1684,11 @@ const Style = () => (
         padding: 0.25rem;
         margin-left: 0.25rem;
     }
-    .auth-footer { margin-top: 2rem; }
+    .auth-footer { 
+        margin-top: 2rem;
+        display: flex;
+        gap: 1rem;
+    }
     .auth-footer button {
         background: none;
         border: none;
