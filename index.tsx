@@ -234,8 +234,13 @@ const App = () => {
         }
     };
 
-    const handleAdminLogin = () => {
-        setIsAdmin(true);
+    const handleAdminLogin = ({ email, password }) => {
+        // Hardcoded credentials for demo/example purposes
+        if (email === 'admin@mandahub.com' && password === 'admin123') {
+            setIsAdmin(true);
+        } else {
+            alert('Credenciais de administrador inválidas.');
+        }
     };
 
     const handleLogout = () => {
@@ -815,6 +820,7 @@ const AdminDashboard = ({ users, allProjects, allClients, allTeamMembers, onLogo
 
 const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
     const [isLogin, setIsLogin] = useState(usersExist);
+    const [isAdminAuth, setIsAdminAuth] = useState(false);
     const [formData, setFormData] = useState({ email: '', password: '', agencyName: '', ownerName: '', ownerEmail: '' });
 
     const handleInputChange = (e) => {
@@ -824,7 +830,9 @@ const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (isLogin) {
+        if (isAdminAuth) {
+            onAdminLogin({ email: formData.email, password: formData.password });
+        } else if (isLogin) {
             onLogin({ email: formData.email, password: formData.password });
         } else {
             onRegister({
@@ -847,6 +855,44 @@ const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
         setIsLogin(usersExist);
     }, [usersExist]);
 
+    const renderFormContent = () => {
+        if (isAdminAuth) {
+            return (
+                <>
+                   <h2>Portal do Administrador</h2>
+                   <p>Acesso restrito para gerenciamento da plataforma.</p>
+                   <input type="email" name="email" placeholder="Email do Administrador" required onChange={handleInputChange} value={formData.email} />
+                   <input type="password" name="password" placeholder="Senha" required onChange={handleInputChange} value={formData.password} />
+                   <button type="submit" className="btn-primary">Entrar como Admin</button>
+                </>
+            );
+        }
+
+        if (isLogin) {
+            return (
+                <>
+                    <h2>Bem-vindo de volta!</h2>
+                    <p>Faça login para gerenciar seus projetos.</p>
+                    <input type="email" name="email" placeholder="Email" required onChange={handleInputChange} value={formData.email} />
+                    <input type="password" name="password" placeholder="Senha" required onChange={handleInputChange} value={formData.password} />
+                    <button type="submit" className="btn-primary">Entrar</button>
+                </>
+            );
+        }
+
+        return (
+             <>
+                <h2>Crie sua agência</h2>
+                <p>Comece a organizar seus projetos e clientes.</p>
+                <input type="text" name="agencyName" placeholder="Nome da sua Agência" required onChange={handleInputChange} value={formData.agencyName} />
+                <input type="text" name="ownerName" placeholder="Seu nome" required onChange={handleInputChange} value={formData.ownerName} />
+                <input type="email" name="ownerEmail" placeholder="Seu email (será seu login)" required onChange={handleInputChange} value={formData.ownerEmail} />
+                <input type="password" name="password" placeholder="Crie uma senha" required onChange={handleInputChange} value={formData.password} />
+                <button type="submit" className="btn-primary">Criar Conta</button>
+             </>
+        );
+    };
+
     return (
         <>
             <Style />
@@ -859,31 +905,24 @@ const AuthScreen = ({ onLogin, onRegister, onAdminLogin, usersExist }) => {
                         </svg>
                         <h1>Manda Hub</h1>
                     </div>
-                    <h2>{isLogin ? 'Bem-vindo de volta!' : 'Crie sua agência'}</h2>
-                    <p>{isLogin ? 'Faça login para gerenciar seus projetos.' : 'Comece a organizar seus projetos e clientes.'}</p>
+                    
                     <form onSubmit={handleSubmit}>
-                        {isLogin ? (
-                            <>
-                                <input type="email" name="email" placeholder="Email" required onChange={handleInputChange} value={formData.email} />
-                                <input type="password" name="password" placeholder="Senha" required onChange={handleInputChange} value={formData.password} />
-                            </>
-                        ) : (
-                            <>
-                                <input type="text" name="agencyName" placeholder="Nome da sua Agência" required onChange={handleInputChange} value={formData.agencyName} />
-                                <input type="text" name="ownerName" placeholder="Seu nome" required onChange={handleInputChange} value={formData.ownerName} />
-                                <input type="email" name="ownerEmail" placeholder="Seu email (será seu login)" required onChange={handleInputChange} value={formData.ownerEmail} />
-                                <input type="password" name="password" placeholder="Crie uma senha" required onChange={handleInputChange} value={formData.password} />
-                            </>
-                        )}
-                        <button type="submit" className="btn-primary">{isLogin ? 'Entrar' : 'Criar Conta'}</button>
+                        {renderFormContent()}
                     </form>
-                    <p className="auth-toggle">
-                        {isLogin ? 'Não tem uma conta?' : 'Já tem uma conta?'}
-                        <button onClick={() => setIsLogin(!isLogin)}>{isLogin ? 'Cadastre-se' : 'Faça login'}</button>
-                    </p>
+                    
+                    {!isAdminAuth && (
+                        <p className="auth-toggle">
+                            {isLogin ? 'Não tem uma conta?' : 'Já tem uma conta?'}
+                            <button onClick={() => setIsLogin(!isLogin)}>{isLogin ? 'Cadastre-se' : 'Faça login'}</button>
+                        </p>
+                    )}
                 </div>
                 <div className="auth-footer">
-                    <button onClick={onAdminLogin}>Acesso Administrativo</button>
+                    {isAdminAuth ? (
+                        <button onClick={() => setIsAdminAuth(false)}>Voltar para Login de Agência</button>
+                    ) : (
+                         <button onClick={() => setIsAdminAuth(true)}>Acesso Administrativo</button>
+                    )}
                     <button onClick={handleClearData}>Limpar Dados de Teste</button>
                 </div>
             </div>
@@ -1924,9 +1963,6 @@ const Style = () => (
         display: grid;
         grid-template-columns: 2fr 1fr;
         gap: 2rem;
-    }
-    @media (max-width: 992px) {
-        .detail-content-grid { grid-template-columns: 1fr; }
     }
     .main-content-column, .sidebar-column { display: flex; flex-direction: column; gap: 2rem; }
     .subproject-list, .team-list, .history-list { list-style: none; display: flex; flex-direction: column; gap: 1rem; }
